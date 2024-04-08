@@ -17,6 +17,11 @@ function Get-Answer {
   return $response -in @('y', 'Y', 'yes', 'Yes')
 }
 
+function Start-AsAdmin {
+  param([ScriptBlock]$ScriptBlock)
+  Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"$ScriptBlock`"" -Verb RunAs
+}
+
 # The main function.
 function Main {
   $scoopApps = @{
@@ -60,6 +65,8 @@ function Main {
   # Install Scoop.
   # https://github.com/ScoopInstaller/Install#readme
   Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
+  # Install Git first because Scoop requires it for adding buckets.
+  scoop install git
   
   # Loop through each bucket and install the apps.
   foreach ($bucket in $scoopApps.Keys) {
@@ -67,6 +74,9 @@ function Main {
     foreach ($app in $scoopApps[$bucket]) {
       scoop install "$bucket/$app"
     }
+  }
+
+  Start-AsAdmin -ScriptBlock {
   }
 }
 

@@ -57,10 +57,6 @@ function Main {
     )
   }
   
-  # Set ExecutionPolicy.
-  # https://github.com/ScoopInstaller/Install?tab=readme-ov-file#prerequisites
-  # Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-
   # Install Scoop.
   # https://github.com/ScoopInstaller/Install#readme
   Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression

@@ -39,13 +39,23 @@ function Add-ScoopBucket {
   }
 }
 
+function Read-IfScoopAppInstalled {
+  param([string]$app)
+  return $installedApps -contains $app
+}
+
 # Installs a Scoop app if it's not already installed.
 function Install-ScoopApp {
   param([string]$app)
-  $scoopList = scoop list
-  if (!($scoopList | Select-String -SimpleMatch $app)) {
-    scoop install $app
+
+  # Check if the app is already installed by checking if there is no error on
+  # `scoop prefix $app`.
+  if (!(scoop prefix $app 2>&1)) {
+    Write-Host "$app is already installed."
+    return
   }
+
+  scoop install $app
 }
 
 # Installs Scoop if it's not already installed.

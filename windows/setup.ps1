@@ -61,10 +61,12 @@ function Main {
       'vscode-insiders'
     )
   }
+
+  # Install Scoop if it is not already installed.
+  if (!(Get-Command scoop -ErrorAction SilentlyContinue)) {
+    Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
+  } 
   
-  # Install Scoop.
-  # https://github.com/ScoopInstaller/Install#readme
-  Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
   # Install Git first because Scoop requires it for adding buckets.
   scoop install git
   

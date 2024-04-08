@@ -24,7 +24,6 @@ function Start-AsAdmin {
 }
 
 # Finds a command by name.
-# Returns: True if the command exists, otherwise false.
 function Find-Command {
   param([string]$command)
  
@@ -40,7 +39,6 @@ function Install-Scoop {
 
 
 # Add a Scoop bucket if it's not already in the bucket list.
-# Returns: True if the bucket was added, otherwise false.
 function Add-ScoopBucket {
   param([string]$bucket)
   if (!(scoop bucket list | Select-String -SimpleMatch $bucket)) {

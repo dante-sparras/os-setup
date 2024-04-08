@@ -19,12 +19,48 @@ function Get-Answer {
 
 function Start-AsAdmin {
   param([ScriptBlock]$ScriptBlock)
+ 
   Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"$ScriptBlock`"" -Verb RunAs
+}
+
+# Finds a command by name.
+# Returns: True if the command exists, otherwise false.
+function Find-Command {
+  param([string]$command)
+ 
+  return Get-Command $command -ErrorAction SilentlyContinue
+}
+
+# Installs Scoop if it's not already installed.
+function Install-Scoop {
+  if (!(Find-Command scoop)) {
+    Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
+  }
+}
+
+
+# Add a Scoop bucket if it's not already in the bucket list.
+# Returns: True if the bucket was added, otherwise false.
+function Add-ScoopBucket {
+  param([string]$bucket)
+  if (!(scoop bucket list | Select-String -SimpleMatch $bucket)) {
+    scoop bucket add $bucket
+  }
+}
+
+# Installs a Scoop app if it's not already installed.
+# Returns: True if the app was installed, otherwise false.
+function Install-ScoopApp {
+  param([string]$app)
+  if (!(scoop list | Select-String -SimpleMatch $app)) {
+    scoop install $app
+  }
 }
 
 # The main function.
 function Main {
-  $scoopApps = @{
+  # --- Scoop ---
+  $scoopBucketsAndApps = @{
     'extras'     = @(
       'bitwarden',
       'bruno', 
@@ -61,24 +97,13 @@ function Main {
       'vscode-insiders'
     )
   }
-
-  # Install Scoop if it is not already installed.
-  if (!(Get-Command scoop -ErrorAction SilentlyContinue)) {
-    Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
-  } 
-  
-  # Install Git first because Scoop requires it for adding buckets.
-  scoop install git
-  
-  # Loop through each bucket and install the apps.
-  foreach ($bucket in $scoopApps.Keys) {
-    scoop bucket add $bucket
-    foreach ($app in $scoopApps[$bucket]) {
-      scoop install "$bucket/$app"
+  Install-Scoop
+  Install-ScoopApp 'git'
+  foreach ($bucket in $scoopBucketsAndApps.Keys) {
+    Add-ScoopBucket $bucket
+    foreach ($app in $scoopBucketsAndApps[$bucket]) {
+      Install-ScoopApp $app
     }
-  }
-
-  Start-AsAdmin -ScriptBlock {
   }
 }
 

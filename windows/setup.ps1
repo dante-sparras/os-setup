@@ -42,7 +42,8 @@ function Add-ScoopBucket {
 # Installs a Scoop app if it's not already installed.
 function Install-ScoopApp {
   param([string]$app)
-  if (!(scoop list | Out-Null | Select-String -SimpleMatch $app)) {
+  $scoopList = scoop list
+  if (!($scoopList | Select-String -SimpleMatch $app)) {
     scoop install $app
   }
 }

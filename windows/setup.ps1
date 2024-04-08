@@ -30,13 +30,6 @@ function Find-Command {
   return Get-Command $command -ErrorAction SilentlyContinue
 }
 
-# Installs Scoop if it's not already installed.
-function Install-Scoop {
-  if (!(Find-Command scoop)) {
-    Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
-  }
-}
-
 
 # Add a Scoop bucket if it's not already in the bucket list.
 function Add-ScoopBucket {
@@ -47,12 +40,20 @@ function Add-ScoopBucket {
 }
 
 # Installs a Scoop app if it's not already installed.
-# Returns: True if the app was installed, otherwise false.
 function Install-ScoopApp {
   param([string]$app)
   if (!(scoop list | Select-String -SimpleMatch $app)) {
     scoop install $app
   }
+}
+
+# Installs Scoop if it's not already installed.
+function Install-Scoop {
+  if (!(Find-Command scoop)) {
+    Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
+  }
+  # Git is required for Scoop to be able to add buckets to the bucket list.
+  Install-ScoopApp 'git'
 }
 
 # The main function.
@@ -96,7 +97,6 @@ function Main {
     )
   }
   Install-Scoop
-  Install-ScoopApp 'git'
   foreach ($bucket in $scoopBucketsAndApps.Keys) {
     Add-ScoopBucket $bucket
     foreach ($app in $scoopBucketsAndApps[$bucket]) {

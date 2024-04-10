@@ -1,0 +1,29 @@
+{
+  "extras": [
+    "bitwarden",
+    "bruno",
+    "discord",
+    "hibit-uninstaller",
+    "imageglass",
+    "notion",
+    "obs-studio",
+    "powertoys",
+    "qbittorrent",
+    "vlc",
+    "winaero-tweaker"
+  ],
+  "games": ["epic-games-launcher", "steam"],
+  "main": [
+    "7zip",
+    "bun",
+    "docker",
+    "git",
+    "neovim",
+    "nodejs",
+    "oh-my-posh",
+    "python",
+    "terminal-icons"
+  ],
+  "nerd-fonts": ["JetBrains-Mono"],
+  "versions": ["brave-beta", "vscode-insiders"]
+}

@@ -1,14 +1,5 @@
 #!/usr/bin/env pwsh
 
-# Check if running as administrator
-function IsAdmin {
-  $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
-  $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
-
-  return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-}
-
-# Starts a Powershell process and runs a command.
 function Start-PowershellAndRunCommand {
   param(
     [ScriptBlock]$ScriptBlock,
@@ -22,9 +13,7 @@ function Start-PowershellAndRunCommand {
 
   Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"$ScriptBlock`""
 }
-
-# Installs a Winget app if it's not already installed.
-function Install-WingetApp {
+function Install-WingetPackage {
   param (
     [string]$id,
     [bool]$asAdmin = $true
@@ -49,9 +38,7 @@ function Install-WingetApp {
     Write-Error "Failed to install $id. $_"
   }
 }
-
-# Installs a Choco app if it's not already installed.
-function Install-ChocoApp {
+function Install-ChocoPackage {
   param(
     [string]$name,
     [bool]$asAdmin = $true
@@ -77,97 +64,79 @@ function Install-ChocoApp {
   }
 }
 
-# Installs Choco if it's not already installed.
-function Install-Choco {
-  if (Get-Command choco -ErrorAction SilentlyContinue) {
-    Write-Host "Choco is already installed."
-    return
-  }
+# Exit if not running as admin.
+$currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
+$principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
+if (-not ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))) {
+  Write-Host "This script must be run as an administrator."
+  exit 0;
+}
 
+#region Software
+# Install Chocolatey
+if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
   Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 }
-
-if (-not (IsAdmin)) {
-  Write-Host "This script must be run as an administrator."
-  return
+else {
+  Write-Host "Choco is already installed."
 }
 
-Install-Choco
+# Install Choco Packages
+Install-ChocoPackage -name "firacode"
+Install-ChocoPackage -name "firacodenf"
+Install-ChocoPackage -name "inter"
 
-#### Install Packages ####
+# Install Winget Packages
 # General
-Install-WingetApp -id "Discord.Discord"
-Install-WingetApp -id "EpicGames.EpicGamesLauncher" -asAdmin $false
-Install-WingetApp -id "Notion.Notion"
-Install-WingetApp -id "Proton.ProtonDrive"
-Install-WingetApp -id "Proton.ProtonMail"
-Install-WingetApp -id "Proton.ProtonPass"
-Install-WingetApp -id "Proton.ProtonVPN"
-Install-WingetApp -id "Spotify.Spotify" -asAdmin $false
-Install-WingetApp -id "TheBrowserCompany.Arc"
-Install-WingetApp -id "Valve.Steam"
-Install-WingetApp -id "Zen-Team.Zen-Browser"
+Install-WingetPackage -id "Discord.Discord"
+Install-WingetPackage -id "EpicGames.EpicGamesLauncher" -asAdmin $false
+Install-WingetPackage -id "Notion.Notion"
+Install-WingetPackage -id "Proton.ProtonDrive"
+Install-WingetPackage -id "Proton.ProtonMail"
+Install-WingetPackage -id "Proton.ProtonPass"
+Install-WingetPackage -id "Proton.ProtonVPN"
+Install-WingetPackage -id "Spotify.Spotify" -asAdmin $false
+Install-WingetPackage -id "TheBrowserCompany.Arc"
+Install-WingetPackage -id "Valve.Steam"
+Install-WingetPackage -id "Zen-Team.Zen-Browser"
 # Development
-Install-WingetApp -id "BlenderFoundation.Blender"
-Install-WingetApp -id "Docker.DockerDesktop"
-Install-WingetApp -id "Figma.Figma"
-Install-WingetApp -id "Git.Git"
-Install-WingetApp -id "GitHub.cli"
-Install-WingetApp -id "GitHub.GitHubDesktop"
-Install-WingetApp -id "JanDeDobbeleer.OhMyPosh"
-Install-WingetApp -id "JetBrains.Rider"
-Install-WingetApp -id "Microsoft.PowerShell"
-Install-WingetApp -id "Microsoft.VisualStudio.2022.Community"
-Install-WingetApp -id "Microsoft.VisualStudioCode"
-Install-WingetApp -id "Unity.UnityHub"
+Install-WingetPackage -id "BlenderFoundation.Blender"
+Install-WingetPackage -id "Docker.DockerDesktop"
+Install-WingetPackage -id "Figma.Figma"
+Install-WingetPackage -id "Git.Git"
+Install-WingetPackage -id "GitHub.cli"
+Install-WingetPackage -id "GitHub.GitHubDesktop"
+Install-WingetPackage -id "JanDeDobbeleer.OhMyPosh"
+Install-WingetPackage -id "JetBrains.Rider"
+Install-WingetPackage -id "Microsoft.PowerShell"
+Install-WingetPackage -id "Microsoft.VisualStudio.2022.Community"
+Install-WingetPackage -id "Microsoft.VisualStudioCode"
+Install-WingetPackage -id "Unity.UnityHub"
 # Programming Languages, Runtimes, Frameworks
-Install-WingetApp -id "DenoLand.Deno"
-Install-WingetApp -id "Microsoft.DotNet.SDK.8"
-Install-WingetApp -id "OpenJS.NodeJS"
-Install-WingetApp -id "Oven-sh.Bun"
+Install-WingetPackage -id "DenoLand.Deno"
+Install-WingetPackage -id "Microsoft.DotNet.SDK.8"
+Install-WingetPackage -id "OpenJS.NodeJS"
+Install-WingetPackage -id "Oven-sh.Bun"
 # Utilities & Tools
-Install-WingetApp -id "7zip.7zip"
-Install-WingetApp -id "AntibodySoftware.WizFile"
-Install-WingetApp -id "AntibodySoftware.WizTree"
-Install-WingetApp -id "AsaphaHalifa.AudioRelay"
-Install-WingetApp -id "DuongDieuPhap.ImageGlass"
-Install-WingetApp -id "HiBitSoftware.HiBitUninstaller"
-Install-WingetApp -id "Logitech.GHUB"
-Install-WingetApp -id "Microsoft.PowerToys"
-Install-WingetApp -id "Microsoft.WindowsADK"
-Install-WingetApp -id "qBittorrent.qBittorrent"
-Install-WingetApp -id "Symless.Synergy"
-Install-WingetApp -id "VideoLAN.VLC"
-Install-WingetApp -id "winaero.tweaker"
-# Fonts
-Install-ChocoApp -name "firacode"
-Install-ChocoApp -name "firacodenf"
-Install-ChocoApp -name "inter"
-
-$updatePackagesScript = Invoke-RestMethod -Uri "https://raw.githubusercontent.com/dante-sparras/os-setup/main/windows/update-packages.ps1"
-$updatePackagesScriptPath = "$env:USERPROFILE\Documents\Powershell\update-packages.ps1"
-$updatePackagesShortcutPath = "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\update-packages.lnk"
-
-# Create update packages script and add script content to it
-New-Item -Path $updatePackagesScriptPath -ItemType "File" -Force
-Add-Content -Path $updatePackagesScriptPath -Value $updatePackagesScript
-
-# Create shortcut in startup folder
-$wshell = New-Object -ComObject WScript.Shell
-$shortcut = $wshell.CreateShortcut($updatePackagesShortcutPath)
-
-# Make the shortcut run the update packages script with Powershell
-$shortcut.TargetPath = "powershell.exe"
-$shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$updatePackagesScriptPath`""
-$shortcut.IconLocation = "powershell.exe"
-
-$shortcut.Save()
-
-#### Windows Settings ####
+Install-WingetPackage -id "7zip.7zip"
+Install-WingetPackage -id "AntibodySoftware.WizFile"
+Install-WingetPackage -id "AntibodySoftware.WizTree"
+Install-WingetPackage -id "AsaphaHalifa.AudioRelay"
+Install-WingetPackage -id "DuongDieuPhap.ImageGlass"
+Install-WingetPackage -id "HiBitSoftware.HiBitUninstaller"
+Install-WingetPackage -id "Logitech.GHUB"
+Install-WingetPackage -id "Microsoft.PowerToys"
+Install-WingetPackage -id "Microsoft.WindowsADK"
+Install-WingetPackage -id "qBittorrent.qBittorrent"
+Install-WingetPackage -id "Symless.Synergy"
+Install-WingetPackage -id "VideoLAN.VLC"
+Install-WingetPackage -id "winaero.tweaker"
 
 # Remove all shortcuts from the Desktop
 Remove-Item -Path "C:\Users\*\Desktop\*.lnk" -Force -ErrorAction SilentlyContinue
+#endregion
 
+#region Registry
 # Toggle on Dark Mode
 $themePath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 Set-ItemProperty -Path $themePath -Name "AppsUseLightTheme" -Value 0
@@ -179,13 +148,8 @@ Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" 
 # Toggle off the Task View Button in the Taskbar
 Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowTaskViewButton" -Value 0
 
-# Turn on "Settings" to Personalization > Start > Folders
-
 # Show extensions in File Explorer
 Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "HideFileExt" -Value 0
+#endregion
 
-# Restart Windows Explorer to apply changes
-Stop-Process -Name explorer -Force
-
-#### Run Chris Titus Tech's Windows Utility ####
 Invoke-RestMethod "https://christitus.com/win" | Invoke-Expression

@@ -19,12 +19,6 @@ function Install-WingetPackage {
     [bool]$asAdmin = $true
   )
 
-  winget list -q $id | Out-Null
-  if ($?) {
-    Write-Host "$id is already installed."
-    return
-  }
-
   try {
     if ($asAdmin) {
       winget install --id=$id --silent --accept-package-agreements --accept-source-agreements
@@ -43,11 +37,6 @@ function Install-ChocoPackage {
     [string]$name,
     [bool]$asAdmin = $true
   )
-
-  if (choco list --local-only | Select-String -Pattern "^$name\s") {
-    Write-Host "$name is already installed."
-    return
-  }
 
   try {
     if ($asAdmin) {

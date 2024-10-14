@@ -1,144 +1,113 @@
 #!/usr/bin/env pwsh
 
-function Start-PowershellAndRunCommand {
-  param(
-    [ScriptBlock]$ScriptBlock,
-    [bool]$AsAdmin = $false
-  )
-
-  if ($AsAdmin) {
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"$ScriptBlock`"" -Verb RunAs
-    return
-  }
-
-  Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"$ScriptBlock`""
-}
-function Install-WingetPackage {
+# Downloads the first zip file matching the given pattern from the latest
+# release of the given repo, extracts it, and installs the .ttf and .otf
+# font files.
+function Install-FontFromGitHubRelease {
   param (
-    [string]$id,
-    [bool]$asAdmin = $true
+    # Repo name in the format "owner/repo"
+    [string]$Repo,
+    # Pattern for the zip file name in the latest release
+    [string]$Pattern
   )
+  $headers = @{
+    "User-Agent" = "PowerShell Script"
+    "Accept"     = "application/vnd.github.v3+json"
+  }
+  $githubApiReleaseUrl = "https://api.github.com/repos/$Repo/releases/latest"
 
   try {
-    if ($asAdmin) {
-      winget install --id=$id --silent --accept-package-agreements --accept-source-agreements
+    $latestReleaseInfo = Invoke-RestMethod -Uri $githubApiReleaseUrl -Headers $headers
+    $fontZipAsset = $latestReleaseInfo.assets | Where-Object { $_.name -like "*$Pattern*.zip" } | Select-Object -First 1
+    $fontZipAssetName = $fontZipAsset.name
+
+    if (-not $fontZipAsset) { throw "No font zip file matching '$Pattern' found in '$Repo'." }
+
+    $tempZipPath = Join-Path $env:TEMP $fontZipAsset.name
+    Invoke-WebRequest -Uri $fontZipAsset.browser_download_url -OutFile $tempZipPath
+
+    $tempExtractPath = Join-Path $env:TEMP "$($fontZipAsset.name)_extracted"
+    Expand-Archive -Path $tempZipPath -DestinationPath $tempExtractPath -Force
+
+    $fontFilesInstalled = 0
+    Get-ChildItem -Path $tempExtractPath -Recurse -Include *.ttf, *.otf | ForEach-Object {
+      $fontFile = $_
+      $fontFileName = $fontFile.Name
+
+      Copy-Item $fontFile.FullName -Destination "$env:WINDIR\Fonts" -Force -ErrorAction SilentlyContinue
+
+      $fontRegistryName = $fontFile.BaseName
+      New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts" `
+        -Name "$fontRegistryName (TrueType)" `
+        -Value $fontFileName `
+        -PropertyType String -Force | Out-Null
+
+      $fontFilesInstalled++
     }
 
-    Start-PowershellAndRunCommand -ScriptBlock {
-      winget install --id=$id --silent --accept-package-agreements --accept-source-agreements
-    }
+    Remove-Item $tempZipPath, $tempExtractPath -Recurse -Force
+    Write-Host "Installed $($fontFilesInstalled) fonts from `"$fontZipAssetName`" downloaded from `"$Repo`" (latest release):"
   }
   catch {
-    Write-Error "Failed to install $id. $_"
-  }
-}
-function Install-ChocoPackage {
-  param(
-    [string]$name,
-    [bool]$asAdmin = $true
-  )
-
-  try {
-    if ($asAdmin) {
-      choco install $name -y
-      return
-    }
-
-    Start-PowershellAndRunCommand -ScriptBlock {
-      choco install $name -y
-    }
-  }
-  catch {
-    Write-Error "Failed to install $name. $_"
+    Remove-Item $tempZipPath, $tempExtractPath -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Error "Failed to install fonts from '$Repo': $_"
   }
 }
 
-# Exit if not running as admin.
-$currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
-$principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
+# Return if not running as admin
+$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$principal = New-Object Security.Principal.WindowsPrincipal($identity)
 if (-not ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))) {
   Write-Host "This script must be run as an administrator."
-  exit 0;
+  return
 }
 
-#region Software
-# Install Chocolatey
-if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
-  Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-}
-else {
-  Write-Host "Choco is already installed."
-}
+# Install fonts
+Install-FontFromGitHubRelease -Repo "tonsky/FiraCode" -Pattern "Fira_Code"
+Install-FontFromGitHubRelease -Repo "ryanoasis/nerd-fonts" -Pattern "FiraCode"
 
-# Install Choco Packages
-Install-ChocoPackage -name "firacode"
-Install-ChocoPackage -name "firacodenf"
-Install-ChocoPackage -name "inter"
+# Install apps
+winget install --silent --accept-package-agreements --accept-source-agreements `
+  7zip.7zip `
+  AntibodySoftware.WizFile `
+  AntibodySoftware.WizTree `
+  AsaphaHalifa.AudioRelay `
+  BlenderFoundation.Blender `
+  DenoLand.Deno `
+  Discord.Discord `
+  Docker.DockerDesktop `
+  DuongDieuPhap.ImageGlass `
+  EpicGames.EpicGamesLauncher `
+  Git.Git `
+  GitHub.cli `
+  GitHub.GitHubDesktop `
+  HiBitSoftware.HiBitUninstaller `
+  JanDeDobbeleer.OhMyPosh `
+  JetBrains.Rider `
+  Logitech.GHUB `
+  Microsoft.DotNet.SDK.8 `
+  Microsoft.PowerShell `
+  Microsoft.PowerToys `
+  Microsoft.VisualStudio.2022.Community `
+  Microsoft.VisualStudioCode `
+  Notion.Notion `
+  OpenJS.NodeJS `
+  Oven-sh.Bun `
+  Proton.ProtonDrive `
+  Proton.ProtonMail `
+  Proton.ProtonPass `
+  Proton.ProtonVPN `
+  qBittorrent.qBittorrent `
+  Symless.Synergy `
+  TheBrowserCompany.Arc `
+  Unity.UnityHub `
+  Valve.Steam `
+  VideoLAN.VLC `
+  winaero.tweaker `
+  Zen-Team.Zen-Browser
 
-# Install Winget Packages
-# General
-Install-WingetPackage -id "Discord.Discord"
-Install-WingetPackage -id "EpicGames.EpicGamesLauncher" -asAdmin $false
-Install-WingetPackage -id "Notion.Notion"
-Install-WingetPackage -id "Proton.ProtonDrive"
-Install-WingetPackage -id "Proton.ProtonMail"
-Install-WingetPackage -id "Proton.ProtonPass"
-Install-WingetPackage -id "Proton.ProtonVPN"
-Install-WingetPackage -id "Spotify.Spotify" -asAdmin $false
-Install-WingetPackage -id "TheBrowserCompany.Arc"
-Install-WingetPackage -id "Valve.Steam"
-Install-WingetPackage -id "Zen-Team.Zen-Browser"
-# Development
-Install-WingetPackage -id "BlenderFoundation.Blender"
-Install-WingetPackage -id "Docker.DockerDesktop"
-Install-WingetPackage -id "Figma.Figma"
-Install-WingetPackage -id "Git.Git"
-Install-WingetPackage -id "GitHub.cli"
-Install-WingetPackage -id "GitHub.GitHubDesktop"
-Install-WingetPackage -id "JanDeDobbeleer.OhMyPosh"
-Install-WingetPackage -id "JetBrains.Rider"
-Install-WingetPackage -id "Microsoft.PowerShell"
-Install-WingetPackage -id "Microsoft.VisualStudio.2022.Community"
-Install-WingetPackage -id "Microsoft.VisualStudioCode"
-Install-WingetPackage -id "Unity.UnityHub"
-# Programming Languages, Runtimes, Frameworks
-Install-WingetPackage -id "DenoLand.Deno"
-Install-WingetPackage -id "Microsoft.DotNet.SDK.8"
-Install-WingetPackage -id "OpenJS.NodeJS"
-Install-WingetPackage -id "Oven-sh.Bun"
-# Utilities & Tools
-Install-WingetPackage -id "7zip.7zip"
-Install-WingetPackage -id "AntibodySoftware.WizFile"
-Install-WingetPackage -id "AntibodySoftware.WizTree"
-Install-WingetPackage -id "AsaphaHalifa.AudioRelay"
-Install-WingetPackage -id "DuongDieuPhap.ImageGlass"
-Install-WingetPackage -id "HiBitSoftware.HiBitUninstaller"
-Install-WingetPackage -id "Logitech.GHUB"
-Install-WingetPackage -id "Microsoft.PowerToys"
-Install-WingetPackage -id "Microsoft.WindowsADK"
-Install-WingetPackage -id "qBittorrent.qBittorrent"
-Install-WingetPackage -id "Symless.Synergy"
-Install-WingetPackage -id "VideoLAN.VLC"
-Install-WingetPackage -id "winaero.tweaker"
+# Remove all shortcuts from desktop
+Get-ChildItem -Path "$env:USERPROFILE\Desktop\*.lnk" | Remove-Item -Force
 
-# Remove all shortcuts from the Desktop
-Remove-Item -Path "C:\Users\*\Desktop\*.lnk" -Force -ErrorAction SilentlyContinue
-#endregion
-
-#region Registry
-# Toggle on Dark Mode
-$themePath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
-Set-ItemProperty -Path $themePath -Name "AppsUseLightTheme" -Value 0
-Set-ItemProperty -Path $themePath -Name "SystemUsesLightTheme" -Value 0
-
-# Set Search in Taskbar to hide
-Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 0
-
-# Toggle off the Task View Button in the Taskbar
-Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowTaskViewButton" -Value 0
-
-# Show extensions in File Explorer
-Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "HideFileExt" -Value 0
-#endregion
-
+# Run Chris Titus Tech's Windows Utility
 Invoke-RestMethod "https://christitus.com/win" | Invoke-Expression

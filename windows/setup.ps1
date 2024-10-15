@@ -67,7 +67,7 @@ if (-not ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administr
 Invoke-WebRequest `
   -Uri "https://raw.githubusercontent.com/ChrisTitusTech/powershell-profile/refs/heads/main/Microsoft.PowerShell_profile.ps1" `
   -OutFile "$env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
-# Install my PowerShell profile
+# Install PowerShell profile
 Invoke-WebRequest `
   -Uri "https://raw.githubusercontent.com/dante-sparras/os-setup/main/windows/profile.ps1" `
   -OutFile "$env:USERPROFILE\Documents\PowerShell\profile.ps1"
@@ -120,7 +120,15 @@ winget install --silent --accept-package-agreements --accept-source-agreements `
 # Remove all shortcuts from desktop
 Get-ChildItem -Path "$env:USERPROFILE\Desktop\*.lnk" | Remove-Item -Force
 
-# Add "winaero-tweaker-export.ini" to the desktop
+# Git configuration
+git config --global core.editor "code --new-window --wait"
+git config --global diff.tool default-difftool
+git config --global difftool.default-difftool.cmd "code --new-window --wait --diff `$LOCAL `$REMOTE"
+git config --global merge.tool code
+git config --global mergetool.code.cmd "code --new-window --wait --merge `$REMOTE `$LOCAL `$BASE `$MERGED"
+git config --global push.autoSetupRemote true
+
+# Download "winaero-tweaker-export.ini" to the desktop
 Invoke-WebRequest `
   -Uri "https://raw.githubusercontent.com/dante-sparras/os-setup/main/windows/winaero-tweaker-export.ini" `
   -OutFile "$env:USERPROFILE\Desktop\winaero-tweaker-export.ini"

@@ -87,6 +87,11 @@ if (-not ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administr
   return
 }
 
+# Create Powershell directory if it doesn't exist
+$profilePath = "$env:USERPROFILE\Documents\Powershell"
+if (!(Test-Path -Path $profilePath)) {
+  New-Item -Path $profilePath -ItemType "directory"
+}
 # Install Chris Titus Tech's PowerShell profile
 # https://github.com/ChrisTitusTech/powershell-profile
 Invoke-WebRequest `

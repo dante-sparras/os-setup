@@ -71,10 +71,12 @@ function Install-WingetPackages {
     Write-Host -NoNewline "Installing `"$package`"..."
     Try {
       winget install --id $package -e --accept-source-agreements --accept-package-agreements -h | Out-Null
-      Write-Host -NoNewline "`rInstalled `"$package`"    `n"
+      Write-Host "`r$(' ' * 80)" -NoNewline
+      Write-Host "`rInstalled `"$package`"`n" -ForegroundColor Green
     }
     Catch {
-      Write-Host -NoNewline "`rFailed to install `"$package`"`n"
+      Write-Host "`r$(' ' * 80)" -NoNewline
+      Write-Host "`rFailed to install `"$package`"`n" -ForegroundColor Red
     }
   }
 }

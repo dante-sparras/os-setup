@@ -10,17 +10,10 @@ if (-not (Get-Module -ListAvailable -Name Microsoft.WinGet.Client)) {
 }
 
 # Initialize Oh-My-Posh
-#oh-my-posh init pwsh --config https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/refs/heads/main/themes/amro.omp.json | Invoke-Expression
+oh-my-posh init pwsh --config https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/refs/heads/main/themes/amro.omp.json | Invoke-Expression
 
-$PSROptions = @{
-    ContinuationPrompt = '  '
-    Colors             = @{
-        Parameter        = $PSStyle.Foreground.Magenta
-        Selection        = $PSStyle.Background.Blue
-        InLinePrediction = $PSStyle.Foreground.BrightYellow + $PSStyle.Background.BrightBlack
-    }
-}
-Set-PSReadLineOption @PSROptions
+# Modify PSReadLine options
+Set-PSReadLineOption -PredictionSource HistoryAndPlugin
 
 #### Utitility Functions ####
 

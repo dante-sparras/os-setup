@@ -53,6 +53,31 @@ function Install-FontsFromGitHubRepo {
     Write-Error "Failed to install fonts from '$Repo': $_"
   }
 }
+# Install Winget Packages silently and without clutter
+function Install-WingetPackages {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory = $true)]
+    [string[]]$Packages
+  )
+
+  foreach ($package in $Packages) {
+    $isInstalled = winget list --id $package | Select-String -Pattern $package
+    if ($isInstalled) {
+      Write-Output "Skipped `"$package`" (already installed)."
+      continue
+    }
+
+    Write-Host -NoNewline "Installing `"$package`"..."
+    Try {
+      winget install --id $package -e --accept-source-agreements --accept-package-agreements -h | Out-Null
+      Write-Host -NoNewline "`rInstalled `"$package`"`n"
+    }
+    Catch {
+      Write-Host -NoNewline "`rFailed to install `"$package`"`n"
+    }
+  }
+}
 
 # Return if not running as admin
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -77,45 +102,46 @@ Invoke-WebRequest `
 Install-FontsFromGitHubRepo -Repo "tonsky/FiraCode" -Pattern "Fira_Code"
 Install-FontsFromGitHubRepo -Repo "ryanoasis/nerd-fonts" -Pattern "FiraCode"
 
-# Install apps
-winget install --silent --accept-package-agreements --accept-source-agreements `
-  7zip.7zip `
-  AntibodySoftware.WizFile `
-  AntibodySoftware.WizTree `
-  AsaphaHalifa.AudioRelay `
-  BlenderFoundation.Blender `
-  DenoLand.Deno `
-  Discord.Discord `
-  Docker.DockerDesktop `
-  DuongDieuPhap.ImageGlass `
-  EpicGames.EpicGamesLauncher `
-  Git.Git `
-  GitHub.cli `
-  GitHub.GitHubDesktop `
-  HiBitSoftware.HiBitUninstaller `
-  JanDeDobbeleer.OhMyPosh `
-  JetBrains.Rider `
-  Logitech.GHUB `
-  Microsoft.DotNet.SDK.8 `
-  Microsoft.PowerShell `
-  Microsoft.PowerToys `
-  Microsoft.VisualStudio.2022.Community `
-  Microsoft.VisualStudioCode `
-  Notion.Notion `
-  OpenJS.NodeJS `
-  Oven-sh.Bun `
-  Proton.ProtonDrive `
-  Proton.ProtonMail `
-  Proton.ProtonPass `
-  Proton.ProtonVPN `
-  qBittorrent.qBittorrent `
-  Symless.Synergy `
-  TheBrowserCompany.Arc `
-  Unity.UnityHub `
-  Valve.Steam `
-  VideoLAN.VLC `
-  winaero.tweaker `
-  Zen-Team.Zen-Browser
+# Install winget packages
+$wingetPackages = @(
+  "7zip.7zip",
+  "AntibodySoftware.WizFile",
+  "AntibodySoftware.WizTree",
+  "AsaphaHalifa.AudioRelay",
+  "BlenderFoundation.Blender",
+  "DenoLand.Deno",
+  "Discord.Discord",
+  "Docker.DockerDesktop",
+  "DuongDieuPhap.ImageGlass",
+  "EpicGames.EpicGamesLauncher",
+  "Git.Git",
+  "GitHub.cli",
+  "GitHub.GitHubDesktop",
+  "JanDeDobbeleer.OhMyPosh",
+  "JetBrains.Rider",
+  "Logitech.GHUB",
+  "Microsoft.DotNet.SDK.8",
+  "Microsoft.PowerShell",
+  "Microsoft.PowerToys",
+  "Microsoft.VisualStudio.2022.Community",
+  "Microsoft.VisualStudioCode",
+  "Notion.Notion",
+  "OpenJS.NodeJS",
+  "Oven-sh.Bun",
+  "Proton.ProtonDrive",
+  "Proton.ProtonMail",
+  "Proton.ProtonPass",
+  "Proton.ProtonVPN",
+  "qBittorrent.qBittorrent",
+  "Symless.Synergy",
+  "TheBrowserCompany.Arc",
+  "Unity.UnityHub",
+  "Valve.Steam",
+  "VideoLAN.VLC",
+  "winaero.tweaker",
+  "Zen-Team.Zen-Brows"
+)
+Install-WingetPackages -Packages $wingetPackages
 
 # Remove all shortcuts from desktop
 Get-ChildItem -Path "$env:USERPROFILE\Desktop\*.lnk" | Remove-Item -Force

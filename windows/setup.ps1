@@ -72,11 +72,11 @@ function Install-WingetPackages {
     Try {
       winget install --id $package -e --accept-source-agreements --accept-package-agreements -h | Out-Null
       Write-Host "`r$(' ' * 80)" -NoNewline
-      Write-Host "`rInstalled `"$package`"`n" -ForegroundColor Green
+      Write-Host "`rInstalled `"$package`"" -ForegroundColor Green
     }
     Catch {
       Write-Host "`r$(' ' * 80)" -NoNewline
-      Write-Host "`rFailed to install `"$package`"`n" -ForegroundColor Red
+      Write-Host "`rFailed to install `"$package`"" -ForegroundColor Red
     }
   }
 }

@@ -1,8 +1,29 @@
 #!/usr/bin/env pwsh
 
-# Downloads the first zip file matching the given pattern from the latest
-# release of the given repo, extracts it, and installs the .ttf and .otf
-# font files.
+# Return if not running as admin
+$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$principal = New-Object Security.Principal.WindowsPrincipal($identity)
+if (-not ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))) {
+  Write-Host "This script must be run as an administrator."
+  return
+}
+
+# Create Powershell directory if it doesn't exist
+if (!(Test-Path -Path "$env:USERPROFILE\Documents\Powershell")) {
+  New-Item -Path "$env:USERPROFILE\Documents\Powershell" -ItemType "directory" | Out-Null
+}
+# Install Chris Titus Tech's PowerShell profile
+# https://github.com/ChrisTitusTech/powershell-profile
+Invoke-WebRequest `
+  -Uri "https://raw.githubusercontent.com/ChrisTitusTech/powershell-profile/refs/heads/main/Microsoft.PowerShell_profile.ps1" `
+  -OutFile "$env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
+# Install PowerShell profile
+Invoke-WebRequest `
+  -Uri "https://raw.githubusercontent.com/dante-sparras/os-setup/main/windows/profile.ps1" `
+  -OutFile "$env:USERPROFILE\Documents\PowerShell\profile.ps1"
+
+
+# Install fonts
 function Install-FontsFromGitHubRepo {
   param (
     # Repo name in the format "owner/repo"
@@ -30,30 +51,54 @@ function Install-FontsFromGitHubRepo {
     Expand-Archive -Path $tempZipPath -DestinationPath $tempExtractPath -Force
 
     $fontFilesInstalled = 0
+    $fontFilesSkipped = 0
     Get-ChildItem -Path $tempExtractPath -Recurse -Include *.ttf, *.otf | ForEach-Object {
       $fontFile = $_
-      $fontFileName = $fontFile.Name
-
-      Copy-Item $fontFile.FullName -Destination "$env:WINDIR\Fonts" -Force -ErrorAction SilentlyContinue
-
       $fontRegistryName = $fontFile.BaseName
-      New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts" `
-        -Name "$fontRegistryName (TrueType)" `
+      $fontRegistryPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts"
+      $fontType = if ($fontFile.Extension -eq ".otf") { "OpenType" } else { "TrueType" }
+      $fontRegistryEntry = "$fontRegistryName ($fontType)"
+
+      $existingFont = Get-ItemProperty `
+        -Path $fontRegistryPath `
+        -Name $fontRegistryEntry `
+        -ErrorAction SilentlyContinue
+      if (-not $existingFont) {
+        $fontFilesSkipped++
+        continue
+      }
+
+      Copy-Item `
+        -Path $fontFile.FullName `
+        -Destination "$env:WINDIR\Fonts" `
+        -ErrorAction SilentlyContinue `
+        -Force
+
+      $fontFileName = $fontFile.Name
+      New-ItemProperty `
+        -Path $fontRegistryPath `
+        -Name $fontRegistryEntry `
         -Value $fontFileName `
-        -PropertyType String -Force | Out-Null
+        -PropertyType String -Force `
+      | Out-Null
 
       $fontFilesInstalled++
     }
 
     Remove-Item $tempZipPath, $tempExtractPath -Recurse -Force
-    Write-Host "Installed $($fontFilesInstalled) fonts from `"$fontZipAssetName`" downloaded from `"$Repo`" (latest release):"
+
+    Write-Host "Installed $($fontFilesInstalled) ($($fontFilesSkipped) skipped) fonts from `"$fontZipAssetName`" downloaded from `"$Repo`" (latest release):"
   }
   catch {
     Remove-Item $tempZipPath, $tempExtractPath -Recurse -Force -ErrorAction SilentlyContinue
     Write-Error "Failed to install fonts from '$Repo': $_"
   }
 }
-# Install Winget Packages silently and without clutter
+
+Install-FontsFromGitHubRepo -Repo "tonsky/FiraCode" -Pattern "Fira_Code"
+Install-FontsFromGitHubRepo -Repo "ryanoasis/nerd-fonts" -Pattern "FiraCode"
+
+# Install winget packages
 function Install-WingetPackages {
   [CmdletBinding()]
   param(
@@ -80,36 +125,6 @@ function Install-WingetPackages {
     }
   }
 }
-
-# Return if not running as admin
-$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-$principal = New-Object Security.Principal.WindowsPrincipal($identity)
-if (-not ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))) {
-  Write-Host "This script must be run as an administrator."
-  return
-}
-
-# Create Powershell directory if it doesn't exist
-$profilePath = "$env:USERPROFILE\Documents\Powershell"
-if (!(Test-Path -Path $profilePath)) {
-  New-Item -Path $profilePath -ItemType "directory" | Out-Null
-}
-# Install Chris Titus Tech's PowerShell profile
-# https://github.com/ChrisTitusTech/powershell-profile
-Invoke-WebRequest `
-  -Uri "https://raw.githubusercontent.com/ChrisTitusTech/powershell-profile/refs/heads/main/Microsoft.PowerShell_profile.ps1" `
-  -OutFile "$env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
-# Install PowerShell profile
-Invoke-WebRequest `
-  -Uri "https://raw.githubusercontent.com/dante-sparras/os-setup/main/windows/profile.ps1" `
-  -OutFile "$env:USERPROFILE\Documents\PowerShell\profile.ps1"
-
-
-# Install fonts
-Install-FontsFromGitHubRepo -Repo "tonsky/FiraCode" -Pattern "Fira_Code"
-Install-FontsFromGitHubRepo -Repo "ryanoasis/nerd-fonts" -Pattern "FiraCode"
-
-# Install winget packages
 $wingetPackages = @(
   "7zip.7zip",
   "AntibodySoftware.WizFile",
@@ -121,9 +136,10 @@ $wingetPackages = @(
   "Docker.DockerDesktop",
   "DuongDieuPhap.ImageGlass",
   "EpicGames.EpicGamesLauncher",
-  "Git.Git",
+  "Git.Git"
   "GitHub.cli",
   "GitHub.GitHubDesktop",
+  "Guru3D.Afterburner",
   "JanDeDobbeleer.OhMyPosh",
   "JetBrains.Rider",
   "Logitech.GHUB",
@@ -150,10 +166,10 @@ $wingetPackages = @(
 )
 Install-WingetPackages -Packages $wingetPackages
 
-# Remove all shortcuts from desktop
-Get-ChildItem -Path "$env:USERPROFILE\Desktop\*.lnk" | Remove-Item -Force
+# Restart environment path, so that package commands will work without restarting Terminal.
+$env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
 
-# Git configuration
+# Git global configuration
 git config --global push.autoSetupRemote true
 git config --global init.defaultBranch main
 git config --global credential.helper cache
@@ -163,6 +179,9 @@ git config --global diff.tool default-difftool
 git config --global merge.tool code
 git config --global difftool.default-difftool.cmd "code --new-window --wait --diff `$LOCAL `$REMOTE"
 git config --global mergetool.code.cmd "code --new-window --wait --merge `$REMOTE `$LOCAL `$BASE `$MERGED"
+
+# Remove all shortcuts from desktop
+Get-ChildItem -Path "$env:USERPROFILE\Desktop\*.lnk" | Remove-Item -Force
 
 # Download "winaero-tweaker-export.ini" to the desktop
 Invoke-WebRequest `

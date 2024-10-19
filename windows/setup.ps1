@@ -1,34 +1,77 @@
 #!/usr/bin/env pwsh
 
-# Return if not running as admin
-$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-$principal = New-Object Security.Principal.WindowsPrincipal($identity)
-if (-not ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))) {
-  Write-Host "This script must be run as an administrator."
-  return
+#region Functions
+# Overwrites the last line with a new output.
+function Write-HostOverwrite {
+  [CmdletBinding()]
+  param(
+    [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromRemainingArguments = $true)]
+    [System.Object] $Object,
+    [System.ConsoleColor] $ForegroundColor,
+    [System.ConsoleColor] $BackgroundColor
+  )
+  $host.UI.RawUI.CursorPosition = @{
+    X = 0
+    Y = $host.UI.RawUI.CursorPosition.Y - 1
+  }
+  Write-Host (" " * $host.UI.RawUI.BufferSize.Width) -NoNewline
+  $host.UI.RawUI.CursorPosition = @{
+    X = 0
+    Y = $host.UI.RawUI.CursorPosition.Y
+  }
+
+  $writeHostParams = @{}
+  if ($PSBoundParameters.ContainsKey('ForegroundColor')) {
+    $writeHostParams['ForegroundColor'] = $ForegroundColor
+  }
+  if ($PSBoundParameters.ContainsKey('BackgroundColor')) {
+    $writeHostParams['BackgroundColor'] = $BackgroundColor
+  }
+  Write-Host $Object @writeHostParams
 }
+# Installs one or more packages with Winget.
+function Install-WingetPackage {
+  [CmdletBinding()]
+  param (
+    [Parameter(Mandatory = $true)]
+    [string[]]$Packages
+  )
+  $packageManagers = @{
+    "Winget" = @{
+      CheckCommand   = {
+        param($package)
+        winget list --id $package | Select-String -Pattern $package
+      }
+      InstallCommand = {
+        param($package)
+        winget install --id $package --exact --accept-source-agreements --accept-package-agreements --silent *> $null
+      }
+    }
+  }
+  $commands = $packageManagers["Winget"]
 
-# Create Powershell directory if it doesn't exist
-if (!(Test-Path -Path "$env:USERPROFILE\Documents\Powershell")) {
-  New-Item -Path "$env:USERPROFILE\Documents\Powershell" -ItemType "directory" | Out-Null
+  foreach ($Package in @($Packages)) {
+    $isInstalled = & $commands.CheckCommand $Package
+    if ($isInstalled) {
+      Write-Host "Skipped `"$Package`" (already installed)"
+      continue
+    }
+
+    Write-Host "Installing `"$Package`"..."
+    try {
+      & $commands.InstallCommand $Package
+      Write-HostOverwrite "Installed `"$Package`"" -ForegroundColor Green
+    }
+    catch {
+      Write-HostOverwrite "Failed to install `"$Package`"" -ForegroundColor Red
+    }
+  }
 }
-# Install Chris Titus Tech's PowerShell profile
-# https://github.com/ChrisTitusTech/powershell-profile
-Invoke-WebRequest `
-  -Uri "https://raw.githubusercontent.com/ChrisTitusTech/powershell-profile/refs/heads/main/Microsoft.PowerShell_profile.ps1" `
-  -OutFile "$env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
-# Install PowerShell profile
-Invoke-WebRequest `
-  -Uri "https://raw.githubusercontent.com/dante-sparras/os-setup/main/windows/profile.ps1" `
-  -OutFile "$env:USERPROFILE\Documents\PowerShell\profile.ps1"
-
-
-# Install fonts
+# Downloads the first zip file matching the pattern in the latest release from
+# the GitHub repo, extracts the files, and installs the font files.
 function Install-FontsFromGitHubRepo {
   param (
-    # Repo name in the format "owner/repo"
     [string]$Repo,
-    # Pattern for the zip file name in the latest release
     [string]$Pattern
   )
   $headers = @{
@@ -37,105 +80,108 @@ function Install-FontsFromGitHubRepo {
   }
   $githubApiReleaseUrl = "https://api.github.com/repos/$Repo/releases/latest"
 
-  try {
-    $latestReleaseInfo = Invoke-RestMethod -Uri $githubApiReleaseUrl -Headers $headers
-    $fontZipAsset = $latestReleaseInfo.assets | Where-Object { $_.name -like "*$Pattern*.zip" } | Select-Object -First 1
-    $fontZipAssetName = $fontZipAsset.name
-
-    if (-not $fontZipAsset) { throw "No font zip file matching '$Pattern' found in '$Repo'." }
-
-    $tempZipPath = Join-Path $env:TEMP $fontZipAsset.name
-    Invoke-WebRequest -Uri $fontZipAsset.browser_download_url -OutFile $tempZipPath
-
-    $tempExtractPath = Join-Path $env:TEMP "$($fontZipAsset.name)_extracted"
-    Expand-Archive -Path $tempZipPath -DestinationPath $tempExtractPath -Force
-
-    $fontFilesInstalled = 0
-    $fontFilesSkipped = 0
-    Get-ChildItem -Path $tempExtractPath -Recurse -Include *.ttf, *.otf | ForEach-Object {
-      $fontFile = $_
-      $fontRegistryName = $fontFile.BaseName
-      $fontRegistryPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts"
-      $fontType = if ($fontFile.Extension -eq ".otf") { "OpenType" } else { "TrueType" }
-      $fontRegistryEntry = "$fontRegistryName ($fontType)"
-
-      $existingFont = Get-ItemProperty `
-        -Path $fontRegistryPath `
-        -Name $fontRegistryEntry `
-        -ErrorAction SilentlyContinue
-      if (-not $existingFont) {
-        $fontFilesSkipped++
-        continue
-      }
-
-      Copy-Item `
-        -Path $fontFile.FullName `
-        -Destination "$env:WINDIR\Fonts" `
-        -ErrorAction SilentlyContinue `
-        -Force
-
-      $fontFileName = $fontFile.Name
-      New-ItemProperty `
-        -Path $fontRegistryPath `
-        -Name $fontRegistryEntry `
-        -Value $fontFileName `
-        -PropertyType String -Force `
-      | Out-Null
-
-      $fontFilesInstalled++
-    }
-
-    Remove-Item $tempZipPath, $tempExtractPath -Recurse -Force
-
-    Write-Host "Installed $($fontFilesInstalled) ($($fontFilesSkipped) skipped) fonts from `"$fontZipAssetName`" downloaded from `"$Repo`" (latest release):"
+  $latestReleaseInfo = Invoke-RestMethod -Uri $githubApiReleaseUrl -Headers $headers
+  $fontZipAsset = $latestReleaseInfo.assets | Where-Object { $_.name -like "*$Pattern*.zip" } | Select-Object -First 1
+  if (-not $fontZipAsset) {
+    Write-Host "No font zip file matching '$Pattern' found in '$Repo'"
+    return
   }
-  catch {
-    Remove-Item $tempZipPath, $tempExtractPath -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Error "Failed to install fonts from '$Repo': $_"
-  }
-}
 
-Install-FontsFromGitHubRepo -Repo "tonsky/FiraCode" -Pattern "Fira_Code"
-Install-FontsFromGitHubRepo -Repo "ryanoasis/nerd-fonts" -Pattern "FiraCode"
+  $tempZipPath = Join-Path $env:TEMP $fontZipAsset.name
+  Write-Host "Downloading fonts from `"$Repo`"..."
+  Invoke-WebRequest -Uri $fontZipAsset.browser_download_url -OutFile $tempZipPath
 
-# Install winget packages
-function Install-WingetPackages {
-  [CmdletBinding()]
-  param(
-    [Parameter(Mandatory = $true)]
-    [string[]]$Packages
-  )
+  $tempExtractPath = Join-Path $env:TEMP "$($fontZipAsset.name)_extracted"
+  Write-HostOverwrite "Extracting fonts from `"$Repo`"..."
+  Expand-Archive -Path $tempZipPath -DestinationPath $tempExtractPath -Force
 
-  foreach ($package in $Packages) {
-    $isInstalled = winget list --id $package | Select-String -Pattern $package
-    if ($isInstalled) {
-      Write-Output "Skipped `"$package`" (already installed)."
+  $fontFilesInstalled = 0
+  $fontFilesSkipped = 0
+  Write-HostOverwrite "Installing fonts from `"$Repo`"..."
+  Get-ChildItem -Path $tempExtractPath -Recurse -Include *.ttf, *.otf | ForEach-Object {
+    $fontFile = $_
+    $fontRegistryName = $fontFile.BaseName
+    $fontRegistryPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts"
+    $fontType = if ($fontFile.Extension -eq ".otf") { "OpenType" } else { "TrueType" }
+    $fontRegistryEntry = "$fontRegistryName ($fontType)"
+
+    $existingFont = Get-ItemProperty -Path $fontRegistryPath -Name $fontRegistryEntry -ErrorAction SilentlyContinue
+    if (-not $existingFont) {
+      $fontFilesSkipped++
       continue
     }
 
-    Write-Host -NoNewline "Installing `"$package`"..."
-    Try {
-      winget install --id $package -e --accept-source-agreements --accept-package-agreements -h | Out-Null
-      Write-Host "`r$(' ' * 80)" -NoNewline
-      Write-Host "`rInstalled `"$package`"" -ForegroundColor Green
-    }
-    Catch {
-      Write-Host "`r$(' ' * 80)" -NoNewline
-      Write-Host "`rFailed to install `"$package`"" -ForegroundColor Red
-    }
+    Copy-Item -Path $fontFile.FullName -Destination "$env:WINDIR\Fonts" -ErrorAction SilentlyContinue -Force
+    $fontFileName = $fontFile.Name
+    New-ItemProperty -Path $fontRegistryPath -Name $fontRegistryEntry -Value $fontFileName -PropertyType String -Force | Out-Null
+    $fontFilesInstalled++
   }
+  Remove-Item $tempZipPath, $tempExtractPath -Recurse -Force
+  Write-HostOverwrite "Successfully installed $($fontFilesInstalled) ($($fontFilesSkipped) skipped) fonts from `"$Repo`" (latest release)" -ForegroundColor Green
 }
-$wingetPackages = @(
+#endregion
+
+#### Start of the script ####
+
+# Check if PowerShell is running as an administrator
+$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$principal = New-Object Security.Principal.WindowsPrincipal $identity
+$admin = [Security.Principal.WindowsBuiltInRole]::Administrator
+if (-not ($principal.IsInRole($admin))) {
+  Write-Host "Please run PowerShell as an administrator" -ForegroundColor Red
+  return
+}
+
+# Create a PowerShell profile directory if it doesn't exist
+switch ($PSVersionTable.PSEdition) {
+  "Core" { $profileDirectoryPath = "$env:USERPROFILE\Documents\Powershell" }
+  "Desktop" { $profileDirectoryPath = "$env:USERPROFILE\Documents\WindowsPowerShell" }
+}
+if (-not (Test-Path -Path $profileDirectoryPath)) {
+  Write-Host "Creating PowerShell profile directory ..."
+  New-Item -Path $profileDirectoryPath -ItemType Directory | Out-Null
+  Write-HostOverwrite "Successfully created PowerShell profile directory" -ForegroundColor Green
+}
+
+# Backup current PowerShell profile if it exists
+if (Test-Path -Path $PROFILE -PathType Leaf) {
+  Write-Host "PowerShell profile found. Moving it to `"$profileDirectoryPath\oldprofile.ps1`"..."
+  Move-Item -Path $PROFILE -Destination "$profileDirectoryPath\oldprofile.ps1" -Force
+  Write-HostOverwrite "Successfully moved PowerShell profile to `"$profileDirectoryPath\oldprofile.ps1`"" -ForegroundColor Green
+}
+
+# Install Chris Titus Tech's PowerShell profile
+Write-Host "Installing Chris Titus Tech's PowerShell profile..."
+Invoke-RestMethod `
+  -Uri "https://github.com/ChrisTitusTech/powershell-profile/raw/main/Microsoft.PowerShell_profile.ps1" `
+  -OutFile $PROFILE
+Write-HostOverwrite "Successfully installed Chris Titus Tech's PowerShell profile" -ForegroundColor Green
+
+# Install my custom PowerShell profile
+Write-Host "Installing my custom PowerShell profile..."
+Invoke-WebRequest `
+  -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/profile.ps1" `
+  -OutFile "$profileDirectoryPath\profile.ps1"
+Write-HostOverwrite "Successfully installed my custom PowerShell profile" -ForegroundColor Green
+
+# Install Fira Code and Fira Code Nerd Font
+Install-FontsFromGitHubRepo -Repo "tonsky/FiraCode" -Pattern "Fira_Code"
+Install-FontsFromGitHubRepo -Repo "ryanoasis/nerd-fonts" -Pattern "FiraCode"
+
+# Install Winget packages
+$wingetPackagesToInstall = @(
   "7zip.7zip",
   "AntibodySoftware.WizFile",
   "AntibodySoftware.WizTree",
   "AsaphaHalifa.AudioRelay",
   "BlenderFoundation.Blender",
+  "Canonical.Ubuntu.2404",
   "DenoLand.Deno",
   "Discord.Discord",
   "Docker.DockerDesktop",
   "DuongDieuPhap.ImageGlass",
   "EpicGames.EpicGamesLauncher",
+  "Figma.Figma",
   "Git.Git"
   "GitHub.cli",
   "GitHub.GitHubDesktop",
@@ -148,7 +194,11 @@ $wingetPackages = @(
   "Microsoft.PowerToys",
   "Microsoft.VisualStudio.2022.Community",
   "Microsoft.VisualStudioCode",
+  "Microsoft.WSL",
   "Notion.Notion",
+  "Notion.NotionCalendar",
+  "Nvidia.GeForceExperience",
+  "OBSProject.OBSStudio",
   "OpenJS.NodeJS",
   "Oven-sh.Bun",
   "Proton.ProtonDrive",
@@ -156,6 +206,8 @@ $wingetPackages = @(
   "Proton.ProtonPass",
   "Proton.ProtonVPN",
   "qBittorrent.qBittorrent",
+  "REALiX.HWiNFO",
+  "rcmaehl.MSEdgeRedirect",
   "Symless.Synergy",
   "TheBrowserCompany.Arc",
   "Unity.UnityHub",
@@ -163,30 +215,39 @@ $wingetPackages = @(
   "VideoLAN.VLC",
   "winaero.tweaker",
   "Zen-Team.Zen-Brows"
+  # Add more packages here
 )
-Install-WingetPackages -Packages $wingetPackages
+Install-WingetPackage $wingetPackagesToInstall
 
-# Restart environment path, so that package commands will work without restarting Terminal.
-$env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+# Reset environment path
+Write-Host "Resetting environment path..."
+$machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+$userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+$env:Path = "$machinePath;$userPath"
+Write-HostOverwrite "Environment path reset" -ForegroundColor Green
 
-# Git global configuration
+# Add global Git config settings
+Write-Host "Adding global Git config settings..."
+# Automatically set up remote tracking branches when pushing for the first time
 git config --global push.autoSetupRemote true
+# Set the default branch name to 'main' when initializing a new repository
 git config --global init.defaultBranch main
+# Use the credential cache to store credentials temporarily for faster authentication
 git config --global credential.helper cache
+# Enable rebase when pulling changes, keeping a linear commit history
 git config --global pull.rebase true
+# Set Visual Studio Code as the default editor for Git, opening in a new window and waiting for edits to complete
 git config --global core.editor "code --new-window --wait"
-git config --global diff.tool default-difftool
-git config --global merge.tool code
-git config --global difftool.default-difftool.cmd "code --new-window --wait --diff `$LOCAL `$REMOTE"
-git config --global mergetool.code.cmd "code --new-window --wait --merge `$REMOTE `$LOCAL `$BASE `$MERGED"
+Write-HostOverwrite "Added global Git config settings" -ForegroundColor Green
 
-# Remove all shortcuts from desktop
+# Remove shortcuts from desktop
+Write-Host "Removing shortcuts from desktop..."
 Get-ChildItem -Path "$env:USERPROFILE\Desktop\*.lnk" | Remove-Item -Force
+Write-HostOverwrite "Shortcuts removed from desktop" -ForegroundColor Green
 
-# Download "winaero-tweaker-export.ini" to the desktop
+# Download my Winaero Tweaker settings export file to the desktop
+Write-Host "Downloading `"winaero-tweaker-export.ini`" to the desktop..."
 Invoke-WebRequest `
   -Uri "https://raw.githubusercontent.com/dante-sparras/os-setup/main/windows/winaero-tweaker-export.ini" `
   -OutFile "$env:USERPROFILE\Desktop\winaero-tweaker-export.ini"
-
-# Run Chris Titus Tech's Windows Utility
-Invoke-RestMethod "https://christitus.com/win" | Invoke-Expression
+Write-HostOverwrite "Downloaded `"winaero-tweaker-export.ini`" to the desktop" -ForegroundColor Green

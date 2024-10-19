@@ -1,7 +1,7 @@
 # Install Winfetch (if not already installed)
 # https://www.powershellgallery.com/packages/winfetch
 if (-not (Get-InstalledScript -Name winfetch)) {
-    Install-Script -Name winfetch -Scope CurrentUser -Force -AcceptLicense
+    Install-Script -Name winfetch -Force -AcceptLicense
 }
 
 # Initialize Oh-My-Posh

@@ -105,8 +105,7 @@ function Install-FontsFromGitHubRepo {
     $fontType = if ($fontFile.Extension -eq ".otf") { "OpenType" } else { "TrueType" }
     $fontRegistryEntry = "$fontRegistryName ($fontType)"
 
-    $existingFont = Get-ItemProperty -Path $fontRegistryPath -Name $fontRegistryEntry -ErrorAction SilentlyContinue
-    if (-not $existingFont) {
+    if (Get-ItemProperty -Path $fontRegistryPath -Name $fontRegistryEntry -ErrorAction SilentlyContinue) {
       $fontFilesSkipped++
       continue
     }

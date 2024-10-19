@@ -12,5 +12,5 @@
 3. Run the following command to download and execute the `setup.ps1` script:
 
    ```powershell
-    Invoke-RestMethod -Uri "https://raw.githubusercontent.com/dante-sparras/os-setup/main/windows/setup.ps1" | Invoke-Expression
+    Invoke-RestMethod -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/setup.ps1" | Invoke-Expression
    ```

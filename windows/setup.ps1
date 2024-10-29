@@ -7,7 +7,6 @@ function Install-WingetPackage {
     [Parameter(Mandatory = $true)]
     [string[]]$PackagesIds
   )
-  $packageResults = @()
   $currentPackageIndex = 0
 
   foreach ($PackageID in @($PackagesIds)) {
@@ -16,35 +15,21 @@ function Install-WingetPackage {
     $packageAlreadyInstalled = winget list --id $PackageID | Select-String -Pattern $PackageID
 
     if ($packageAlreadyInstalled) {
-      Write-Progress -Activity "Installing Packages" -Status "Skipped $PackageID (already installed)" -PercentComplete $percentComplete
-      $packageResults += [PSCustomObject]@{
-        ID     = $PackageID
-        Status = "Skipped"
-      }
+      Write-Host "Skipping $PackageID (already installed)" -ForegroundColor Yellow
       continue
     }
 
-    Write-Progress -Activity "Installing Packages" -Status "Installing $PackageID" -PercentComplete $percentComplete
+    Write-Progress -Activity "Installing Packages" -Status "Installing $PackageID..." -PercentComplete $percentComplete
     try {
       winget install --id $PackageID --exact --accept-source-agreements --accept-package-agreements --silent *> $null
-      $packageResults += [PSCustomObject]@{
-        ID     = $PackageID
-        Status = "Installed"
-      }
       Write-Progress -Activity "Installing Packages" -Status "Installed $PackageID" -PercentComplete $percentComplete
+      Write-Host "Successfully installed $PackageID" -ForegroundColor Green
     }
     catch {
-      $packageResults += [PSCustomObject]@{
-        ID     = $PackageID
-        Status = "Failed"
-      }
       Write-Progress -Activity "Installing Packages" -Status "Failed to install $PackageID" -PercentComplete $percentComplete
+      Write-Host "Failed to install $PackageID" -ForegroundColor Red
     }
   }
-  Write-Progress -Activity "Installing Packages" -Completed
-
-  Write-Host "`nInstallation Summary:" -ForegroundColor Cyan
-  $packageResults | Format-Table -AutoSize
 }
 function Invoke-GitHubApiRequest {
   [CmdletBinding()]
@@ -187,15 +172,20 @@ Write-Host "Successfully installed my custom PowerShell profile" -ForegroundColo
 ##                                                                                                                    ##
 ########################################################################################################################
 
-# FiraCode
-$latestReleaseResponse = Invoke-GitHubApiRequest -Endpoint "repos/tonsky/FiraCode/releases/latest"
-$matchingReleaseAssets = $latestReleaseResponse.assets | Where-Object { $_.name -match "Fira_Code_v[\d.]+\.zip" } | Select-Object -First 1
-Install-FontsFromZipUrl -ZipUrl $matchingReleaseAssets.browser_download_url
+# Install Chocolatey
+Write-Progress -Activity "Installing Chocolatey" -Status "Installing Chocolatey..." -PercentComplete 0
+Set-ExecutionPolicy Bypass -Scope Process -Force
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1')) *> $null
+Write-Progress -Activity "Installing Packages" -Status "Installed Chocolatey" -PercentComplete 100
+Write-Host "Successfully installed Chocolatey" -ForegroundColor Green
 
-# FiraCode Nerd Font
-$latestReleaseResponse = Invoke-GitHubApiRequest -Endpoint "repos/ryanoasis/nerd-fonts/releases/latest"
-$matchingReleaseAssets = $latestReleaseResponse.assets | Where-Object { $_.name -eq "FiraCode.zip" } | Select-Object -First 1
-Install-FontsFromZipUrl -ZipUrl $matchingReleaseAssets.browser_download_url
+# Install Fonts
+Write-Progress -Activity "Installing Fonts" -Status "Installing Fonts..." -PercentComplete 0
+choco install --confirm --limitoutput firacode *> $null
+choco install --confirm --limitoutput firacodenf *> $null
+Write-Progress -Activity "Installing Fonts" -Status "Installed Fonts" -PercentComplete 100
+Write-Host "Successfully installed fonts" -ForegroundColor Green
 
 ########################################################################################################################
 ##                                                                                                                    ##
@@ -223,6 +213,7 @@ $wingetPackagesToInstall = @(
   "JanDeDobbeleer.OhMyPosh",
   "JetBrains.Rider",
   "Logitech.GHUB",
+  "MartiCliment.UniGetUI",
   "Microsoft.DotNet.SDK.8",
   "Microsoft.PowerShell",
   "Microsoft.PowerToys",

@@ -114,8 +114,8 @@ function Install-FontsFromZipUrl {
     Write-Error "Error: $_"
   }
   finally {
-    if (Test-Path $tempZipDirPath) { Remove-Item $tempZipDirPath -Recurse -Force -Confirm:$false }
-    if (Test-Path $tempExtractDirPath) { Remove-Item $tempExtractDirPath -Recurse -Force -Confirm:$false }
+    if (Test-Path $tempZipDirPath) { Remove-Item -Path $tempZipDirPath -Recurse -Force }
+    if (Test-Path $tempExtractDirPath) { Remove-Item -Path $tempExtractDirPath -Recurse -Force }
   }
 }
 #endregion

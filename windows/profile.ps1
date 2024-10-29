@@ -4,85 +4,81 @@ if (-not (Get-InstalledScript -Name winfetch)) {
     Install-Script -Name winfetch -Force -AcceptLicense
 }
 
-# Initialize Oh-My-Posh
-oh-my-posh init pwsh --config https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/refs/heads/main/themes/amro.omp.json | Invoke-Expression
-
 #### Utitility Functions ####
 
 # Updates all Winget packages
 function Update-All {
-    $toSkip = @(
-        "Unity.UnityHub"
+    $packagesToExclude = @(
+        "^Unity\.Unity\."
         # Add more packages to ignore here
     )
 
-    # Overwrites the last line with a new output
-    function Write-HostOverwrite {
+    function Install-WingetPackage {
         [CmdletBinding()]
-        param(
-            [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromRemainingArguments = $true)]
-            [System.Object] $Object,
-            [System.ConsoleColor] $ForegroundColor,
-            [System.ConsoleColor] $BackgroundColor
+        param (
+            [Parameter(Mandatory = $true)]
+            [string[]]$PackagesIds
         )
-        $host.UI.RawUI.CursorPosition = @{
-            X = 0
-            Y = $host.UI.RawUI.CursorPosition.Y - 1
-        }
-        Write-Host (" " * $host.UI.RawUI.BufferSize.Width) -NoNewline
-        $host.UI.RawUI.CursorPosition = @{
-            X = 0
-            Y = $host.UI.RawUI.CursorPosition.Y
-        }
+        $packageResults = @()
+        $currentPackageIndex = 0
 
-        $writeHostParams = @{}
-        if ($PSBoundParameters.ContainsKey('ForegroundColor')) {
-            $writeHostParams['ForegroundColor'] = $ForegroundColor
-        }
-        if ($PSBoundParameters.ContainsKey('BackgroundColor')) {
-            $writeHostParams['BackgroundColor'] = $BackgroundColor
-        }
-        Write-Host $Object @writeHostParams
-    }
+        foreach ($PackageID in @($PackagesIds)) {
+            $currentPackageIndex++
+            $percentComplete = ($currentPackageIndex / $PackagesIds.Count) * 100
+            $packageAlreadyInstalled = winget list --id $PackageID | Select-String -Pattern $PackageID
 
-    class WingetPackageData {
-        [string]$Name
-        [string]$ID
-        [string]$Version
-        [string]$AvailableVersion
-    }
+            if ($packageAlreadyInstalled) {
+                Write-Progress -Activity "Installing Packages" -Status "Skipped $PackageID (already installed)" -PercentComplete $percentComplete
+                $packageResults += [PSCustomObject]@{
+                    ID     = $PackageID
+                    Status = "Skipped"
+                }
+                continue
+            }
 
-    $upgradableWingetPackages = winget upgrade | Select-Object -Skip 1 | ForEach-Object {
-        if ($_ -and -not $_.StartsWith('-')) {
-            $parts = $_ -split '\s{2,}'
-
-            if ($toSkip -contains $parts[1]) { continue }
-
-            [WingetPackageData]@{
-                Name             = $parts[0]
-                ID               = $parts[1]
-                Version          = $parts[2]
-                AvailableVersion = $parts[3]
+            Write-Progress -Activity "Installing Packages" -Status "Installing $PackageID" -PercentComplete $percentComplete
+            try {
+                winget install --id $PackageID --exact --accept-source-agreements --accept-package-agreements --silent *> $null
+                $packageResults += [PSCustomObject]@{
+                    ID     = $PackageID
+                    Status = "Installed"
+                }
+                Write-Progress -Activity "Installing Packages" -Status "Installed $PackageID" -PercentComplete $percentComplete
+            }
+            catch {
+                $packageResults += [PSCustomObject]@{
+                    ID     = $PackageID
+                    Status = "Failed"
+                }
+                Write-Progress -Activity "Installing Packages" -Status "Failed to install $PackageID" -PercentComplete $percentComplete
             }
         }
+        Write-Progress -Activity "Installing Packages" -Completed
+
+        Write-Host "`nInstallation Summary:" -ForegroundColor Cyan
+        $packageResults | Format-Table -AutoSize
     }
 
-    if ($upgradableWingetPackages.Count -eq 0) {
+    $upgradablePackagesIds = winget upgrade | Select-Object -Skip 1 | ForEach-Object {
+        if (-not $_ -or $_.StartsWith('-')) { return }
+
+        $parts = $_ -split '\s{2,}'
+        $packageID = $parts[1]
+
+        return $packageID
+    }
+
+    $upgradablePackagesIds = $upgradablePackagesIds | Where-Object {
+        $_ -NotMatch $packagesToExclude
+    }
+
+    if ($upgradablePackagesIds.Count -eq 0) {
         Write-Host "All apps are up to date" -ForegroundColor Green
         return
     }
 
-    $upgradableWingetPackages | ForEach-Object {
-        $packageID = $_.ID
-        $packageName = $_.Name
+    Install-WingetPackage -PackagesIds $upgradablePackagesIds
 
-        Write-Host "Installing `"$packageName`"..."
-        Try {
-            winget install --id $packageID --exact --silent --accept-source-agreements --accept-package-agreements *> $null
-            Write-HostOverwrite "Installed `"$packageName`"" -ForegroundColor Green
-        }
-        Catch {
-            Write-HostOverwrite "Failed to install `"$packageName`"" -ForegroundColor Red
-        }
-    }
+    Get-ChildItem -Path "$env:USERPROFILE\Desktop\*.lnk" | Remove-Item -Force
+    Write-Host "Shortcuts removed from desktop" -ForegroundColor Green
 }

@@ -72,26 +72,43 @@ function Install-FontsFromZipUrl {
     [string]$ZipUrl
   )
 
+  Add-Type -AssemblyName System.Drawing
+
+  function Get-FontFamilyName {
+    param(
+      [string]$FontPath
+    )
+
+    $fontCollection = New-Object System.Drawing.Text.PrivateFontCollection
+    $fontCollection.AddFontFile($FontPath)
+    $familyName = $fontCollection.Families[0].Name
+    $fontCollection.Dispose()
+    return $familyName
+  }
+
   function Install-Font {
     param(
       [string]$Path
     )
-    $fontFileName = [System.IO.Path]::GetFileName($Path)
 
+    $fontPath = Resolve-Path $Path -ErrorAction Stop
+    $fontFileName = [System.IO.Path]::GetFileName($fontPath)
+    $fontFamilyName = Get-FontFamilyName -FontPath $fontPath
     $installedFonts = @(Get-ChildItem -Path "C:\Windows\Fonts" -Name)
+
     if ($installedFonts -contains $fontFileName) {
-      Write-Host "Font '$fontFileName' is already installed."
+      Write-Host "Font '$fontFamilyName' is already installed."
       return
     }
 
     try {
       $shell = New-Object -ComObject Shell.Application
       $fontsFolder = $shell.Namespace(0x14)
-      $fontsFolder.CopyHere($Path, 0x14)
-      Write-Host "Font '$fontFileName' installed successfully."
+      $fontsFolder.CopyHere($fontPath, 0x14)
+      Write-Host "Font '$fontFamilyName' installed successfully."
     }
     catch {
-      Write-Error "Failed to install font '$fontFileName': $_"
+      Write-Error "Failed to install font '$fontFamilyName' ($fontFileName): $_"
     }
   }
 
@@ -105,13 +122,13 @@ function Install-FontsFromZipUrl {
     Invoke-WebRequest -Uri $ZipUrl -OutFile $tempZipFilePath
     Expand-Archive -Path $tempZipFilePath -DestinationPath $tempExtractDirPath -Force
 
-    $fontFiles = Get-ChildItem -Path $tempExtractDirPath -Recurse -File -Include *.ttf, *.otf, *.woff, *.eot, *.woff2
+    $fontFiles = Get-ChildItem -Path $tempExtractDirPath -Recurse -File -Include *.ttf, *.otf
     foreach ($fontFile in $fontFiles) {
-      Install-Font -fontPath $fontFile
+      Install-Font -Path $fontFile
     }
   }
   catch {
-    Write-Error "Error: $_"
+    Write-Error "$_"
   }
   finally {
     if (Test-Path $tempZipDirPath) { Remove-Item -Path $tempZipDirPath -Recurse -Force }

@@ -176,7 +176,7 @@ Write-Host "Successfully installed my custom PowerShell profile" -ForegroundColo
 
 # FiraCode
 $latestReleaseResponse = Invoke-GitHubApiRequest -Endpoint "repos/tonsky/FiraCode/releases/latest"
-$matchingReleaseAssets = $latestReleaseResponse.assets | Where-Object { $_.name -eq "Fira_Code.zip" } | Select-Object -First 1
+$matchingReleaseAssets = $latestReleaseResponse.assets | Where-Object { $_.name -match "Fira_Code_v[\d.]+\.zip" } | Select-Object -First 1
 Install-FontsFromZipUrl -ZipUrl $matchingReleaseAssets.browser_download_url
 
 # FiraCode Nerd Font

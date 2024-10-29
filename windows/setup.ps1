@@ -96,13 +96,14 @@ function Install-FontsFromZipUrl {
   }
 
   $tempZipDirPath = Join-Path $env:TEMP ([System.Guid]::NewGuid().ToString())
+  $tempZipFilePath = Join-Path $tempZipDirPath "font.zip"
   $tempExtractDirPath = Join-Path $env:TEMP ([System.Guid]::NewGuid().ToString())
   try {
     New-Item -ItemType Directory -Path $tempZipDirPath | Out-Null
     New-Item -ItemType Directory -Path $tempExtractDirPath | Out-Null
 
-    Invoke-WebRequest -Uri $ZipUrl -OutFile $tempZipDirPath
-    Expand-Archive -Path $tempZipDirPath -DestinationPath $tempExtractDirPath -Force
+    Invoke-WebRequest -Uri $ZipUrl -OutFile $tempZipFilePath
+    Expand-Archive -Path $tempZipFilePath -DestinationPath $tempExtractDirPath -Force
 
     $fontFiles = Get-ChildItem -Path $tempExtractDirPath -Recurse -File -Include *.ttf, *.otf, *.woff, *.eot, *.woff2
     foreach ($fontFile in $fontFiles) {

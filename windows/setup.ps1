@@ -292,8 +292,8 @@ Write-Host "Added global Git config settings" -ForegroundColor Green
 # Download my WinUtil config
 $tempWinUtilExportPath = Join-Path $env:TEMP "winutil-export.json"
 Invoke-WebRequest `
-  -Uri "https://raw.githubusercontent.com/dante-sparras/os-setup/main/windows/winutil-export.json" `
-  -OutFile Join-Path $tempWinUtilExportPath
+  -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/winutil-export.json" `
+  -OutFile $tempWinUtilExportPath
 # Run WinUtil with my config
 Invoke-Expression "& { $(Invoke-RestMethod christitus.com/win) } -Config $tempWinUtilExportPath -Run"
 Write-Host "Completed all WinUtil tweaks" -ForegroundColor Green
@@ -306,6 +306,6 @@ Write-Host "Completed all WinUtil tweaks" -ForegroundColor Green
 
 # Download my Winaero Tweaker settings export file to the desktop
 Invoke-WebRequest `
-  -Uri "https://raw.githubusercontent.com/dante-sparras/os-setup/main/windows/winaero-tweaker-export.ini" `
+  -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/winaero-tweaker-export.ini" `
   -OutFile "$env:USERPROFILE\Desktop\winaero-tweaker-export.ini"
 Write-Host "Downloaded `"winaero-tweaker-export.ini`" to the desktop" -ForegroundColor Green

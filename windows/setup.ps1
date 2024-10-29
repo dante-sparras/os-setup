@@ -97,19 +97,14 @@ function Install-FontsFromZipUrl {
     $installedFonts = @(Get-ChildItem -Path "C:\Windows\Fonts" -Name)
 
     if ($installedFonts -contains $fontFileName) {
-      Write-Host "Font '$fontFamilyName' is already installed."
+      Write-Host "Font '$fontFamilyName' is already installed." -ForegroundColor Yellow
       return
     }
 
-    try {
-      $shell = New-Object -ComObject Shell.Application
-      $fontsFolder = $shell.Namespace(0x14)
-      $fontsFolder.CopyHere($fontPath, 0x14)
-      Write-Host "Font '$fontFamilyName' installed successfully."
-    }
-    catch {
-      Write-Error "Failed to install font '$fontFamilyName' ($fontFileName): $_"
-    }
+    $shell = New-Object -ComObject Shell.Application
+    $fontsFolder = $shell.Namespace(0x14)
+    $fontsFolder.CopyHere($fontPath, 0x14)
+    Write-Host "Font '$fontFamilyName' installed successfully." -ForegroundColor Green
   }
 
   $tempZipDirPath = Join-Path $env:TEMP ([System.Guid]::NewGuid().ToString())
@@ -285,21 +280,6 @@ Write-Host "Added global Git config settings" -ForegroundColor Green
 
 ########################################################################################################################
 ##                                                                                                                    ##
-##                                                   WinUtil Tweaks                                                   ##
-##                                                                                                                    ##
-########################################################################################################################
-
-# Download my WinUtil config
-$tempWinUtilExportPath = Join-Path $env:TEMP "winutil-export.json"
-Invoke-WebRequest `
-  -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/winutil-export.json" `
-  -OutFile $tempWinUtilExportPath
-# Run WinUtil with my config
-Invoke-Expression "& { $(Invoke-RestMethod christitus.com/win) } -Config $tempWinUtilExportPath -Run"
-Write-Host "Completed all WinUtil tweaks" -ForegroundColor Green
-
-########################################################################################################################
-##                                                                                                                    ##
 ##                                                       Other                                                        ##
 ##                                                                                                                    ##
 ########################################################################################################################
@@ -309,3 +289,18 @@ Invoke-WebRequest `
   -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/winaero-tweaker-export.ini" `
   -OutFile "$env:USERPROFILE\Desktop\winaero-tweaker-export.ini"
 Write-Host "Downloaded `"winaero-tweaker-export.ini`" to the desktop" -ForegroundColor Green
+
+########################################################################################################################
+##                                                                                                                    ##
+##                                                   WinUtil Tweaks                                                   ##
+##                                                                                                                    ##
+########################################################################################################################
+
+# Download my WinUtil config
+$tempWinUtilExportPath = Join-Path $env:TEMP "winutil-export.json"
+Invoke-WebRequest `
+  -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/winutil-export.json" `
+  -OutFile $tempWinUtilExportPath
+# Run WinUtil with my config in a new PowerShell window
+Start-Process powershell -Wait -ArgumentList "-Command `"& { $(Invoke-RestMethod christitus.com/win) } -Config $tempWinUtilExportPath -Run`""
+Write-Host "Completed all WinUtil tweaks" -ForegroundColor Green

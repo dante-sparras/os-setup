@@ -1,199 +1,142 @@
 #!/usr/bin/env pwsh
 
-#region Functions
-function Install-WingetPackage {
+########################################################################################################################
+##                                                                                                                    ##
+##                                                     Functions                                                      ##
+##                                                                                                                    ##
+########################################################################################################################
+
+function Write-Log {
   [CmdletBinding()]
   param (
-    [Parameter(Mandatory = $true)]
-    [string[]]$PackagesIds
+    [Parameter(Mandatory = $true, Position = 0)]
+    [string]$Message,
+    [Parameter(Mandatory = $false)]
+    [ValidateSet('Info', 'Warning', 'Error', 'Success', 'Debug', 'Verbose')]
+    [string]$Type = 'Info',
+    [Parameter(Mandatory = $false)]
+    [switch]$NoNewLine
   )
-  $currentPackageIndex = 0
 
-  foreach ($PackageID in @($PackagesIds)) {
-    $currentPackageIndex++
-    $percentComplete = ($currentPackageIndex / $PackagesIds.Count) * 100
-    $packageAlreadyInstalled = winget list --id $PackageID | Select-String -Pattern $PackageID
-
-    if ($packageAlreadyInstalled) {
-      Write-Host "Skipping $PackageID (already installed)" -ForegroundColor Yellow
-      continue
-    }
-
-    Write-Progress -Activity "Installing Packages" -Status "Installing $PackageID..." -PercentComplete $percentComplete
-    try {
-      winget install --id $PackageID --exact --accept-source-agreements --accept-package-agreements --silent *> $null
-      Write-Progress -Activity "Installing Packages" -Status "Installed $PackageID" -PercentComplete $percentComplete
-      Write-Host "Successfully installed $PackageID" -ForegroundColor Green
-    }
-    catch {
-      Write-Progress -Activity "Installing Packages" -Status "Failed to install $PackageID" -PercentComplete $percentComplete
-      Write-Host "Failed to install $PackageID" -ForegroundColor Red
-    }
+  $colors = @{
+    Info    = 'White'
+    Warning = 'Yellow'
+    Error   = 'Red'
+    Success = 'Green'
+    Debug   = 'Cyan'
+    Verbose = 'Gray'
   }
+
+  $params = @{
+    ForegroundColor = $colors[$Type]
+    NoNewline       = $NoNewLine
+  }
+
+  Write-Host $Message @params
 }
-function Invoke-GitHubApiRequest {
+function Invoke-Silently {
   [CmdletBinding()]
-  param (
-    [Parameter(Mandatory = $true)]
-    [string]$Endpoint
-  )
-  $headers = @{
-    "User-Agent" = "PowerShell Script"
-    "Accept"     = "application/vnd.github+json"
-  }
-
-  try {
-    return Invoke-WebRequest -Uri "https://api.github.com/$Endpoint" -Headers $headers | ConvertFrom-Json
-  }
-  catch {
-    Write-Error "Error: $_"
-  }
-
-}
-function Install-FontsFromZipUrl {
-  [CmdletBinding()]
-  param (
-    [Parameter(Mandatory = $true)]
-    [string]$ZipUrl
+  param(
+    [Parameter(Mandatory = $true, Position = 0)]
+    [scriptblock]$ScriptBlock
   )
 
-  Add-Type -AssemblyName System.Drawing
+  $oldProgressPreference = $ProgressPreference
+  $oldVerbosePreference = $VerbosePreference
+  $oldInformationPreference = $InformationPreference
+  $oldWarningPreference = $WarningPreference
+  $oldErrorActionPreference = $ErrorActionPreference
 
-  function Get-FontFamilyName {
-    param(
-      [string]$FontPath
-    )
+  $ProgressPreference = 'SilentlyContinue'
+  $VerbosePreference = 'SilentlyContinue'
+  $InformationPreference = 'SilentlyContinue'
+  $WarningPreference = 'SilentlyContinue'
+  $ErrorActionPreference = 'SilentlyContinue'
 
-    $fontCollection = New-Object System.Drawing.Text.PrivateFontCollection
-    $fontCollection.AddFontFile($FontPath)
-    $familyName = $fontCollection.Families[0].Name
-    $fontCollection.Dispose()
-    return $familyName
-  }
+  $null = & {
+    & $ScriptBlock 2>&1 > $null
+  } *> $null
 
-  function Install-Font {
-    param(
-      [string]$Path
-    )
-
-    $fontPath = Resolve-Path $Path -ErrorAction Stop
-    $fontFileName = [System.IO.Path]::GetFileName($fontPath)
-    $fontFamilyName = Get-FontFamilyName -FontPath $fontPath
-    $installedFonts = @(Get-ChildItem -Path "C:\Windows\Fonts" -Name)
-
-    if ($installedFonts -contains $fontFileName) {
-      Write-Host "Font '$fontFamilyName' is already installed." -ForegroundColor Yellow
-      return
-    }
-
-    $shell = New-Object -ComObject Shell.Application
-    $fontsFolder = $shell.Namespace(0x14)
-    $fontsFolder.CopyHere($fontPath, 0x14)
-    Write-Host "Font '$fontFamilyName' installed successfully." -ForegroundColor Green
-  }
-
-  $tempZipDirPath = Join-Path $env:TEMP ([System.Guid]::NewGuid().ToString())
-  $tempZipFilePath = Join-Path $tempZipDirPath "font.zip"
-  $tempExtractDirPath = Join-Path $env:TEMP ([System.Guid]::NewGuid().ToString())
-  try {
-    New-Item -ItemType Directory -Path $tempZipDirPath | Out-Null
-    New-Item -ItemType Directory -Path $tempExtractDirPath | Out-Null
-
-    Invoke-WebRequest -Uri $ZipUrl -OutFile $tempZipFilePath
-    Expand-Archive -Path $tempZipFilePath -DestinationPath $tempExtractDirPath -Force
-
-    $fontFiles = Get-ChildItem -Path $tempExtractDirPath -Recurse -File -Include *.ttf, *.otf
-    foreach ($fontFile in $fontFiles) {
-      Install-Font -Path $fontFile
-    }
-  }
-  catch {
-    Write-Error "$_"
-  }
-  finally {
-    if (Test-Path $tempZipDirPath) { Remove-Item -Path $tempZipDirPath -Recurse -Force }
-    if (Test-Path $tempExtractDirPath) { Remove-Item -Path $tempExtractDirPath -Recurse -Force }
-  }
+  $ProgressPreference = $oldProgressPreference
+  $VerbosePreference = $oldVerbosePreference
+  $InformationPreference = $oldInformationPreference
+  $WarningPreference = $oldWarningPreference
+  $ErrorActionPreference = $oldErrorActionPreference
 }
-#endregion
 
 ########################################################################################################################
 ##                                                                                                                    ##
-##                                                    Admin Check                                                     ##
+##                                                  Start of Script                                                   ##
 ##                                                                                                                    ##
 ########################################################################################################################
 
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = New-Object Security.Principal.WindowsPrincipal $identity
 if (-not ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))) {
-  Write-Host "Please run PowerShell as an administrator" -ForegroundColor Red
-  return
+  Write-Log "This script must be run as an administrator. Open the PowerShell console as an administrator and run this script again." -Type Error
+  break
 }
 
-########################################################################################################################
-##                                                                                                                    ##
-##                                            Install PowerShell Profiles                                             ##
-##                                                                                                                    ##
-########################################################################################################################
-
-# Determine PowerShell profile directory path
-switch ($PSVersionTable.PSEdition) {
-  "Core" { $profileDirectoryPath = "$env:USERPROFILE\Documents\Powershell" }
-  "Desktop" { $profileDirectoryPath = "$env:USERPROFILE\Documents\WindowsPowerShell" }
-}
-
-# Backup old PowerShell profile
-if (Test-Path -Path $PROFILE -PathType Leaf) {
-  Move-Item -Path $PROFILE -Destination "$profileDirectoryPath\oldprofile.ps1" -Force
-  Write-Host "Successfully moved PowerShell profile to `"$profileDirectoryPath\oldprofile.ps1`"" -ForegroundColor Green
-}
-
-# Create PowerShell profile directory if it doesn't exist
+$profileDirectoryPath = "$env:USERPROFILE\Documents\Powershell"
 if (-not (Test-Path -Path $profileDirectoryPath)) {
-  New-Item -Path $profileDirectoryPath -ItemType Directory | Out-Null
-  Write-Host "Successfully created PowerShell profile directory" -ForegroundColor Green
+  try {
+    Write-Log "Creating PowerShell profile directory... " -Type Info -NoNewLine
+    Invoke-Silently { New-Item -Path $profileDirectoryPath -ItemType Directory }
+    Write-Log "Success" -Type Success
+  }
+  catch {
+    Write-Log "Failed" -Type Error
+  }
 }
 
-# Install Chris Titus Tech's PowerShell profile
-Invoke-RestMethod `
-  -Uri "https://github.com/ChrisTitusTech/powershell-profile/raw/main/Microsoft.PowerShell_profile.ps1" `
-  -OutFile $PROFILE
-Write-Host "Successfully installed Chris Titus Tech's PowerShell profile" -ForegroundColor Green
+try {
+  Write-Log "Downloading CTT's PowerShell profile... " -Type Info -NoNewLine
+  Invoke-RestMethod `
+    -Uri "https://github.com/ChrisTitusTech/powershell-profile/raw/main/Microsoft.PowerShell_profile.ps1" `
+    -OutFile $PROFILE
+  Write-Log "Success" -Type Success
+}
+catch {
+  Write-Log "Failed" -Type Error
+}
 
-# Install personal PowerShell profile
-Invoke-WebRequest `
-  -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/profile.ps1" `
-  -OutFile "$profileDirectoryPath\profile.ps1"
-Write-Host "Successfully installed my custom PowerShell profile" -ForegroundColor Green
+try {
+  Write-Log "Downloading personal PowerShell profile... " -Type Info -NoNewLine
+  Invoke-WebRequest `
+    -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/profile.ps1" `
+    -OutFile "$profileDirectoryPath\profile.ps1"
+  Write-Log "Success" -Type Success
+}
+catch {
+  Write-Log "Failed" -Type Error
+}
 
-########################################################################################################################
-##                                                                                                                    ##
-##                                                   Install Fonts                                                    ##
-##                                                                                                                    ##
-########################################################################################################################
+try {
+  Write-Log "Installing 'Chocolatey'... " -Type Info -NoNewLine
+  Invoke-Silently {
+    Set-ExecutionPolicy Bypass -Scope Process -Force
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+    Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+  }
+  Write-Log "Success" -Type Success
+}
+catch {
+  Write-Log "Failed" -Type Error
+}
 
-# Install Chocolatey
-Write-Progress -Activity "Installing Chocolatey" -Status "Installing Chocolatey..." -PercentComplete 0
-Set-ExecutionPolicy Bypass -Scope Process -Force
-[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1')) *> $null
-Write-Progress -Activity "Installing Packages" -Status "Installed Chocolatey" -PercentComplete 100
-Write-Host "Successfully installed Chocolatey" -ForegroundColor Green
+try {
+  Write-Log "Installing 'Fira Code' and 'Fira Code Nerd Font'... " -Type Info -NoNewLine
+  Invoke-Silently {
+    choco install --confirm firacode
+    choco install --confirm firacodenf
+  }
+  Write-Log "Success" -Type Success
+}
+catch {
+  Write-Log "Failed" -Type Error
+}
 
-# Install Fonts
-Write-Progress -Activity "Installing Fonts" -Status "Installing Fonts..." -PercentComplete 0
-choco install --confirm --limitoutput firacode *> $null
-choco install --confirm --limitoutput firacodenf *> $null
-Write-Progress -Activity "Installing Fonts" -Status "Installed Fonts" -PercentComplete 100
-Write-Host "Successfully installed fonts" -ForegroundColor Green
-
-########################################################################################################################
-##                                                                                                                    ##
-##                                              Install Winget Packages                                               ##
-##                                                                                                                    ##
-########################################################################################################################
-
-$wingetPackagesToInstall = @(
+$wingetPackageIds = @(
   "7zip.7zip",
   "AntibodySoftware.WizFile",
   "AntibodySoftware.WizTree",
@@ -240,58 +183,113 @@ $wingetPackagesToInstall = @(
   "Zen-Team.Zen-Brows"
   # Add more packages here
 )
-Install-WingetPackage $wingetPackagesToInstall
+foreach ($packageID in $wingetPackageIds) {
+  Write-Log "Installing $packageID... " -Type Info -NoNewLine
+  try {
+    $isInstalled = winget list --id $packageID | Select-String -Pattern $packageID
+    if ($isInstalled) {
+      Write-Log "Skipped (already installed)" -Type Verbose
+      return
+    }
+    Invoke-Silently { winget install --id $packageID --exact --accept-source-agreements --accept-package-agreements }
+    Write-Log "Success" -Type Success
+  }
+  catch {
+    Write-Log "Failed" -Type Error
+  }
+}
 
-# Clean up shortcuts from desktop created by installed Winget packages
-Get-ChildItem -Path "$env:USERPROFILE\Desktop\*.lnk" | Remove-Item -Force
-Write-Host "Shortcuts removed from desktop" -ForegroundColor Green
+try {
+  Write-Log "Cleaning up .lnk files from desktop directories... " -Type Info -NoNewLine
+  $desktopDirectoryPaths = @(
+    [Environment]::GetFolderPath('Desktop'),
+    [Environment]::GetFolderPath('CommonDesktopDirectory')
+  )
+  foreach ($desktopDirectoryPath in $desktopDirectoryPaths) {
+    if (-not (Test-Path $desktopDirectoryPath)) { return }
+    Get-ChildItem -Path $desktopDirectoryPath -Filter "*.lnk" -Force | Remove-Item -Force
+  }
+  Write-Log "Success" -Type Success
+}
+catch {
+  Write-Log "Failed" -Type Error
+}
 
-# Reset environment variable PATH
-$machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
-$userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
-$env:Path = "$machinePath;$userPath"
+try {
+  Write-Log "Resetting environment variable 'PATH'... " -Type Info -NoNewLine
+  $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+  $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+  $env:Path = "$machinePath;$userPath"
+  Write-Log "Success" -Type Success
+}
+catch {
+  Write-Log "Failed" -Type Error
+}
 
-########################################################################################################################
-##                                                                                                                    ##
-##                                                Git Config (Global)                                                 ##
-##                                                                                                                    ##
-########################################################################################################################
+try {
+  Write-Log "Adding settings to global 'Git' config... " -Type Info -NoNewLine
+  # Automatically set up remote tracking branches when pushing for the first time
+  git config --global push.autoSetupRemote true
+  # Set the default branch name to 'main' when initializing a new repository
+  git config --global init.defaultBranch main
+  # Use the credential cache to store credentials temporarily for faster authentication
+  git config --global credential.helper cache
+  # Enable rebase when pulling changes, keeping a linear commit history
+  git config --global pull.rebase true
+  # Set Visual Studio Code as the default editor for Git, opening in a new window and waiting for edits to complete
+  git config --global core.editor "code --new-window --wait"
+  Write-Log "Success" -Type Success
+}
+catch {
+  Write-Log "Failed" -Type Error
+}
 
-# Automatically set up remote tracking branches when pushing for the first time
-git config --global push.autoSetupRemote true
-# Set the default branch name to 'main' when initializing a new repository
-git config --global init.defaultBranch main
-# Use the credential cache to store credentials temporarily for faster authentication
-git config --global credential.helper cache
-# Enable rebase when pulling changes, keeping a linear commit history
-git config --global pull.rebase true
-# Set Visual Studio Code as the default editor for Git, opening in a new window and waiting for edits to complete
-git config --global core.editor "code --new-window --wait"
-Write-Host "Added global Git config settings" -ForegroundColor Green
+try {
+  Write-Log "Downloading personal 'Winaero Tweaker' settings export file... " -Type Info -NoNewLine
+  Invoke-WebRequest `
+    -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/winaero-tweaker-export.ini" `
+    -OutFile "$env:USERPROFILE\Desktop\winaero-tweaker-export.ini"
+  Write-Log "Success" -Type Success
+}
+catch {
+  Write-Log "Failed" -Type Error
+}
 
-########################################################################################################################
-##                                                                                                                    ##
-##                                                       Other                                                        ##
-##                                                                                                                    ##
-########################################################################################################################
+try {
+  Write-Log "Downloading personal 'WinUtil' settings export file... " -Type Info -NoNewLine
+  $tempWinUtilExportPath = Join-Path $env:TEMP "winutil-export.json"
+  Invoke-WebRequest `
+    -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/winutil-export.json" `
+    -OutFile $tempWinUtilExportPath
+  Write-Log "Success" -Type Success
+}
+catch {
+  Write-Log "Failed" -Type Error
+}
 
-# Download my Winaero Tweaker settings export file to the desktop
-Invoke-WebRequest `
-  -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/winaero-tweaker-export.ini" `
-  -OutFile "$env:USERPROFILE\Desktop\winaero-tweaker-export.ini"
-Write-Host "Downloaded `"winaero-tweaker-export.ini`" to the desktop" -ForegroundColor Green
+try {
+  Write-Log "Running 'WinUtil' with my settings... " -Type Info -NoNewLine
 
-########################################################################################################################
-##                                                                                                                    ##
-##                                                   WinUtil Tweaks                                                   ##
-##                                                                                                                    ##
-########################################################################################################################
+  $scriptBlock = {
+    Invoke-Expression "& { $(Invoke-RestMethod christitus.com/win) } -Config $tempWinUtilExportPath -Run"
+    Exit
+  }
 
-# Download my WinUtil config
-$tempWinUtilExportPath = Join-Path $env:TEMP "winutil-export.json"
-Invoke-WebRequest `
-  -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/winutil-export.json" `
-  -OutFile $tempWinUtilExportPath
-# Run WinUtil with my config in a new PowerShell window
-Start-Process powershell -Wait -ArgumentList "-Command `"& { $(Invoke-RestMethod christitus.com/win) } -Config $tempWinUtilExportPath -Run`""
-Write-Host "Completed all WinUtil tweaks" -ForegroundColor Green
+  $processParams = @{
+    FilePath     = "powershell.exe"
+    Wait         = $true
+    ArgumentList = @(
+      "-NoProfile",
+      "-ExecutionPolicy", "Bypass",
+      "-Command", "& { $scriptBlock }"
+    )
+  }
+
+  Start-Process @processParams
+  Write-Log "Success" -Type Success
+}
+catch {
+  Write-Log "Failed" -Type Error
+}
+
+Write-Log "Setup complete!" -Type Success

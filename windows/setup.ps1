@@ -74,7 +74,7 @@ $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = New-Object Security.Principal.WindowsPrincipal $identity
 if (-not ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))) {
   Write-Log "This script must be run as an administrator. Open the PowerShell console as an administrator and run this script again." -Type Error
-  break
+  exit 1
 }
 
 $profileDirectoryPath = "$env:USERPROFILE\Documents\Powershell"
@@ -149,7 +149,7 @@ $wingetPackageIds = @(
   "DuongDieuPhap.ImageGlass",
   "EpicGames.EpicGamesLauncher",
   "Figma.Figma",
-  "Git.Git"
+  "Git.Git",
   "GitHub.cli",
   "GitHub.GitHubDesktop",
   "Guru3D.Afterburner",

@@ -185,12 +185,12 @@ $wingetPackageIds = @(
 )
 foreach ($packageID in $wingetPackageIds) {
   Write-Log "Installing $packageID... " -Type Info -NoNewLine
+  $isInstalled = winget list --id $packageID | Select-String -Pattern $packageID
+  if ($isInstalled) {
+    Write-Log "Skipped (already installed)" -Type Warning
+    return
+  }
   try {
-    $isInstalled = winget list --id $packageID | Select-String -Pattern $packageID
-    if ($isInstalled) {
-      Write-Log "Skipped (already installed)" -Type Warning
-      continue
-    }
     Invoke-Silently { winget install --id $packageID --exact --accept-source-agreements --accept-package-agreements }
     Write-Log "Success" -Type Success
   }

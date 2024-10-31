@@ -281,15 +281,11 @@ catch {
 try {
   Write-Log "Running WinUtil with personal settings... " -Type Info -NoNewLine
 
-  $scriptBlock = {
-    $tempWinUtilExportPath = Join-Path $env:TEMP "winutil-settings.json"
-    Invoke-Expression "& { $(Invoke-RestMethod christitus.com/win) } -Config $tempWinUtilExportPath -Run"
-  }
-
+  $tempWinUtilExportPath = "C:\Users\Dante\Projects\os-setup\windows\winutil-settings.json"
   $processParams = @{
     FilePath     = "powershell.exe"
     Wait         = $true
-    ArgumentList = "-NoProfile -ExecutionPolicy Bypass -Command & { $($scriptBlock) }"
+    ArgumentList = '-NoProfile -ExecutionPolicy Bypass -Command "iex \"& { $(irm christitus.com/win) } -Config `"' + $configPath + '`" -Run\""'
   }
 
   Start-Process @processParams

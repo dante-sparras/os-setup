@@ -1,10 +1,31 @@
+# PowerShell 7.4 or above is required
+if ($PSVersionTable.PSVersion.Major -lt 7 -or
+    ($PSVersionTable.PSVersion.Major -eq 7 -and $PSVersionTable.PSVersion.Minor -lt 4)) {
+    Write-Error "PowerShell 7.4 or above is required. Current version is $($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor)."
+    exit 1
+}
+
 # Install Winfetch (if not already installed)
-# https://www.powershellgallery.com/packages/winfetch
+# https://github.com/lptstr/winfetch
 if (-not (Get-InstalledScript -Name winfetch)) {
     Install-Script -Name winfetch -Force -AcceptLicense
 }
 
-#### Utitility Functions ####
+# Install CommandNotFound (if not already installed)
+# https://github.com/microsoft/winget-command-not-found
+if (-not (Get-InstalledModule -Name Microsoft.WinGet.CommandNotFound)) {
+    Enable-ExperimentalFeature PSFeedbackProvider
+    Enable-ExperimentalFeature PSCommandNotFoundSuggestion
+    Install-PSResource -Name Microsoft.WinGet.CommandNotFound -Quiet -AcceptLicense
+}
+Import-Module Microsoft.WinGet.CommandNotFound
+
+################################################################################
+##                                                                            ##
+##                                 Functions                                  ##
+##                                                                            ##
+################################################################################
+
 
 # Updates all Winget packages
 function Update-All {

@@ -77,11 +77,10 @@ if (-not ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administr
   exit 1
 }
 
-$profileDirectoryPath = "$env:USERPROFILE\Documents\Powershell"
-if (-not (Test-Path -Path $profileDirectoryPath)) {
+if (-not (Test-Path -Path "$env:USERPROFILE\Documents\Powershell")) {
   try {
     Write-Log "Creating PowerShell profile directory... " -Type Info -NoNewLine
-    Invoke-Silently { New-Item -Path $profileDirectoryPath -ItemType Directory }
+    Invoke-Silently { New-Item -Path "$env:USERPROFILE\Documents\Powershell" -ItemType Directory }
     Write-Log "Success" -Type Success
   }
   catch {
@@ -93,7 +92,7 @@ try {
   Write-Log "Downloading CTT's PowerShell profile... " -Type Info -NoNewLine
   Invoke-RestMethod `
     -Uri "https://github.com/ChrisTitusTech/powershell-profile/raw/main/Microsoft.PowerShell_profile.ps1" `
-    -OutFile $PROFILE
+    -OutFile $PROFILE.CurrentUserCurrentHost
   Write-Log "Success" -Type Success
 }
 catch {
@@ -104,7 +103,7 @@ try {
   Write-Log "Downloading personal PowerShell profile... " -Type Info -NoNewLine
   Invoke-WebRequest `
     -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/profile.ps1" `
-    -OutFile "$profileDirectoryPath\profile.ps1"
+    -OutFile $PROFILE.CurrentUserAllHosts
   Write-Log "Success" -Type Success
 }
 catch {
@@ -162,7 +161,6 @@ $wingetPackageIds = @(
   "Microsoft.PowerToys",
   "Microsoft.VisualStudio.2022.Community",
   "Microsoft.VisualStudioCode",
-  "Microsoft.WSL",
   "Notion.Notion",
   "Notion.NotionCalendar",
   "Nvidia.GeForceExperience",
@@ -187,7 +185,7 @@ foreach ($packageID in $wingetPackageIds) {
   Write-Log "Installing $packageID... " -Type Info -NoNewLine
   $isInstalled = winget list --id $packageID | Select-String -Pattern $packageID
   if ($isInstalled) {
-    Write-Log "Skipped (already installed)" -Type Warning
+    Write-Log "Skipped" -Type Warning
     continue
   }
   try {
@@ -245,10 +243,10 @@ catch {
 }
 
 try {
-  Write-Log "Downloading personal 'Winaero Tweaker' settings export file... " -Type Info -NoNewLine
+  Write-Log "Downloading personal 'Winaero Tweaker' settings file to desktop... " -Type Info -NoNewLine
   Invoke-WebRequest `
-    -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/winaero-tweaker-export.ini" `
-    -OutFile "$env:USERPROFILE\Desktop\winaero-tweaker-export.ini"
+    -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/winaero-tweaker-settings.ini" `
+    -OutFile "$env:USERPROFILE\Desktop\winaero-tweaker-settings.ini"
   Write-Log "Success" -Type Success
 }
 catch {
@@ -256,10 +254,21 @@ catch {
 }
 
 try {
-  Write-Log "Downloading personal 'WinUtil' settings export file... " -Type Info -NoNewLine
-  $tempWinUtilExportPath = Join-Path $env:TEMP "winutil-export.json"
+  Write-Log "Downloading personal 'PowerToys' settings file to desktop... " -Type Info -NoNewLine
   Invoke-WebRequest `
-    -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/winutil-export.json" `
+    -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/powertoys-settings.ptb" `
+    -OutFile "$env:USERPROFILE\Desktop\powertoys-settings.ptb"
+  Write-Log "Success" -Type Success
+}
+catch {
+  Write-Log "Failed" -Type Error
+}
+
+$tempWinUtilExportPath = Join-Path $env:TEMP "winutil-settings.json"
+try {
+  Write-Log "Downloading personal 'WinUtil' settings file... " -Type Info -NoNewLine
+  Invoke-WebRequest `
+    -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/winutil-settings.json" `
     -OutFile $tempWinUtilExportPath
   Write-Log "Success" -Type Success
 }
@@ -267,22 +276,18 @@ catch {
   Write-Log "Failed" -Type Error
 }
 
+
 try {
-  Write-Log "Running 'WinUtil' with my settings... " -Type Info -NoNewLine
+  Write-Log "Running 'WinUtil' with personal settings... " -Type Info -NoNewLine
 
   $scriptBlock = {
     Invoke-Expression "& { $(Invoke-RestMethod christitus.com/win) } -Config $tempWinUtilExportPath -Run"
-    Exit
   }
 
   $processParams = @{
     FilePath     = "powershell.exe"
     Wait         = $true
-    ArgumentList = @(
-      "-NoProfile",
-      "-ExecutionPolicy", "Bypass",
-      "-Command", "& { $scriptBlock }"
-    )
+    ArgumentList = "-NoProfile -ExecutionPolicy Bypass -Command & { $($scriptBlock) }"
   }
 
   Start-Process @processParams
@@ -290,6 +295,11 @@ try {
 }
 catch {
   Write-Log "Failed" -Type Error
+}
+finally {
+  if (Test-Path $tempWinUtilExportPath) {
+    Remove-Item $tempWinUtilExportPath
+  }
 }
 
 Write-Log "Setup complete!" -Type Success

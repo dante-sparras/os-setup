@@ -187,13 +187,13 @@ $installedPackages = winget list | Select-String -Pattern 'PackageIdentifierColu
 $packagesToInstall = $wingetPackageIds | Where-Object { $_ -notin $installedPackages }
 $packagesToInstall | ForEach-Object -Parallel {
   param($packageID)
-  Write-Log "Installing $packageID... " -Type Info -NoNewLine
+  Write-Host "Installing $packageID... " -NoNewLine -ForegroundColor White
   try {
     winget install --id $packageID --exact --accept-source-agreements --accept-package-agreements
-    Write-Log "Success" -Type Success
+    Write-Host "Success" -ForegroundColor Green
   }
   catch {
-    Write-Log "Failed" -Type Error
+    Write-Host "Failed" -ForegroundColor Red
   }
 } -ThrottleLimit 5
 

@@ -181,21 +181,22 @@ $wingetPackageIds = @(
   "Zen-Team.Zen-Brows"
   # Add more packages here
 )
-$installedPackages = winget list | Select-String -Pattern 'PackageIdentifierColumnRegex' | ForEach-Object {
-  $_.ToString().Split(' ')[0]  # Adjust the split index based on actual output
+if (-not (Get-Module -ListAvailable -Name Microsoft.WinGet.Client)) {
+  Install-Module -Name Microsoft.WinGet.Client -Force
 }
-$packagesToInstall = $wingetPackageIds | Where-Object { $_ -notin $installedPackages }
-$packagesToInstall | ForEach-Object -Parallel {
-  param($packageID)
-  Write-Host "Installing $packageID... " -NoNewLine -ForegroundColor White
+$installedPackages = Get-WinGetPackage -ErrorAction Stop
+$installedPackagesIds = $installedPackages | Select-Object -ExpandProperty Id
+$packagesToInstall = $wingetPackageIds | Where-Object { $_ -notin $installedPackagesIds }
+foreach ($packageID in $packagesToInstall) {
   try {
-    winget install --id $packageID --exact --accept-source-agreements --accept-package-agreements
-    Write-Host "Success" -ForegroundColor Green
+    Write-Log "Installing $packageID... " -Type Info -NoNewLine
+    Invoke-Silently { winget install --id $packageID --exact --accept-source-agreements --accept-package-agreements --silent }
+    Write-Log "Success" -Type Success
   }
   catch {
-    Write-Host "Failed" -ForegroundColor Red
+    Write-Log "Failed" -Type Error
   }
-} -ThrottleLimit 5
+}
 
 try {
   Write-Log "Cleaning up .lnk files from desktop directories... " -Type Info -NoNewLine

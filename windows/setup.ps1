@@ -181,21 +181,21 @@ $wingetPackageIds = @(
   "Zen-Team.Zen-Brows"
   # Add more packages here
 )
-foreach ($packageID in $wingetPackageIds) {
+$installedPackages = winget list | Select-String -Pattern 'PackageIdentifierColumnRegex' | ForEach-Object {
+  $_.ToString().Split(' ')[0]  # Adjust the split index based on actual output
+}
+$packagesToInstall = $wingetPackageIds | Where-Object { $_ -notin $installedPackages }
+$packagesToInstall | ForEach-Object -Parallel {
+  param($packageID)
   Write-Log "Installing $packageID... " -Type Info -NoNewLine
-  $isInstalled = winget list --id $packageID | Select-String -Pattern $packageID
-  if ($isInstalled) {
-    Write-Log "Skipped" -Type Warning
-    continue
-  }
   try {
-    Invoke-Silently { winget install --id $packageID --exact --accept-source-agreements --accept-package-agreements }
+    winget install --id $packageID --exact --accept-source-agreements --accept-package-agreements
     Write-Log "Success" -Type Success
   }
   catch {
     Write-Log "Failed" -Type Error
   }
-}
+} -ThrottleLimit 5
 
 try {
   Write-Log "Cleaning up .lnk files from desktop directories... " -Type Info -NoNewLine
@@ -214,7 +214,7 @@ catch {
 }
 
 try {
-  Write-Log "Resetting environment variable 'PATH'... " -Type Info -NoNewLine
+  Write-Log "Resetting environment variable PATH... " -Type Info -NoNewLine
   $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
   $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
   $env:Path = "$machinePath;$userPath"
@@ -225,7 +225,7 @@ catch {
 }
 
 try {
-  Write-Log "Adding settings to global 'Git' config... " -Type Info -NoNewLine
+  Write-Log "Adding settings to global Git config... " -Type Info -NoNewLine
   # Automatically set up remote tracking branches when pushing for the first time
   git config --global push.autoSetupRemote true
   # Set the default branch name to 'main' when initializing a new repository
@@ -243,7 +243,7 @@ catch {
 }
 
 try {
-  Write-Log "Downloading personal 'Winaero Tweaker' settings file to desktop... " -Type Info -NoNewLine
+  Write-Log "Downloading personal Winaero Tweaker settings file to desktop... " -Type Info -NoNewLine
   Invoke-WebRequest `
     -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/winaero-tweaker-settings.ini" `
     -OutFile "$env:USERPROFILE\Desktop\winaero-tweaker-settings.ini"
@@ -254,7 +254,7 @@ catch {
 }
 
 try {
-  Write-Log "Downloading personal 'PowerToys' settings file to desktop... " -Type Info -NoNewLine
+  Write-Log "Downloading personal PowerToys settings file to desktop... " -Type Info -NoNewLine
   Invoke-WebRequest `
     -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/powertoys-settings.ptb" `
     -OutFile "$env:USERPROFILE\Desktop\powertoys-settings.ptb"
@@ -266,7 +266,7 @@ catch {
 
 $tempWinUtilExportPath = Join-Path $env:TEMP "winutil-settings.json"
 try {
-  Write-Log "Downloading personal 'WinUtil' settings file... " -Type Info -NoNewLine
+  Write-Log "Downloading personal WinUtil settings file... " -Type Info -NoNewLine
   Invoke-WebRequest `
     -Uri "https://github.com/dante-sparras/os-setup/raw/main/windows/winutil-settings.json" `
     -OutFile $tempWinUtilExportPath
@@ -278,7 +278,7 @@ catch {
 
 
 try {
-  Write-Log "Running 'WinUtil' with personal settings... " -Type Info -NoNewLine
+  Write-Log "Running WinUtil with personal settings... " -Type Info -NoNewLine
 
   $scriptBlock = {
     Invoke-Expression "& { $(Invoke-RestMethod christitus.com/win) } -Config $tempWinUtilExportPath -Run"

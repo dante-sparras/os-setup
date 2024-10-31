@@ -282,6 +282,7 @@ try {
   Write-Log "Running WinUtil with personal settings... " -Type Info -NoNewLine
 
   $scriptBlock = {
+    $tempWinUtilExportPath = Join-Path $env:TEMP "winutil-settings.json"
     Invoke-Expression "& { $(Invoke-RestMethod christitus.com/win) } -Config $tempWinUtilExportPath -Run"
   }
 

@@ -281,7 +281,6 @@ catch {
 try {
   Write-Log "Running WinUtil with personal settings... " -Type Info -NoNewLine
 
-  $tempWinUtilExportPath = "C:\Users\Dante\Projects\os-setup\windows\winutil-settings.json"
   $processParams = @{
     FilePath     = "powershell.exe"
     Wait         = $true

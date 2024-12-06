@@ -1,6 +1,6 @@
-# My OS Setup
+# Windows Setup Script
 
-## Windows
+## Run Script
 
 1. Start **Powershell** with the **Run as Administrator** (Win + X, A).
 2. Set the **ExecutionPolicy** to **RemoteSigned** with the following command:
